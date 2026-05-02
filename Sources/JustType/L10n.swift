@@ -57,8 +57,10 @@ enum L10n: String {
     case hudWaiting
     case hudConverting
     case hudAcceptHint
+    case hudSubmitHint
     case hudHelp
     case hudKeepTyping
+    case hudReadyToSubmit
 
     // Errors
     case errorMissingAPIKey
@@ -135,8 +137,10 @@ enum L10n: String {
         case .hudWaiting:             return "Waiting for input…"
         case .hudConverting:          return "Converting…"
         case .hudAcceptHint:          return "↩ Accept"
-        case .hudHelp:                return "Type → pause → a candidate appears below. Tap the trigger again to finish."
+        case .hudSubmitHint:          return "↩ Submit"
+        case .hudHelp:                return "Type → pause → a candidate appears below. ↩ accepts it. ↩ again to submit, or tap the trigger key."
         case .hudKeepTyping:          return "Keep typing…"
+        case .hudReadyToSubmit:       return "All converted — press ↩ to submit"
 
         case .errorMissingAPIKey:     return "API key not set"
         case .errorInvalidURL:        return "Invalid Base URL"
@@ -204,8 +208,10 @@ enum L10n: String {
         case .hudWaiting:             return "等待输入…"
         case .hudConverting:          return "正在转换…"
         case .hudAcceptHint:          return "↩ 接受"
-        case .hudHelp:                return "打字 → 停顿 → 候选会出现在这里。再按一次触发键完成输入。"
+        case .hudSubmitHint:          return "↩ 提交"
+        case .hudHelp:                return "打字 → 停顿 → 候选出现在下方。↩ 接受候选;↩ 再按一次提交,或按一次触发键。"
         case .hudKeepTyping:          return "继续输入…"
+        case .hudReadyToSubmit:       return "已全部转换 — 按 ↩ 提交"
 
         case .errorMissingAPIKey:     return "API Key 未配置"
         case .errorInvalidURL:        return "Base URL 无效"

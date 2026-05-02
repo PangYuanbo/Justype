@@ -254,6 +254,18 @@ struct HUDView: View {
                 Spacer(minLength: 8)
                 hintBadge(text: L10n.hudAcceptHint.t, color: accent)
             }
+        } else if viewModel.snapshot.raw.isEmpty && !viewModel.snapshot.committed.isEmpty {
+            // Everything is converted — ↩ now submits.
+            HStack(spacing: 10) {
+                Image(systemName: "checkmark.seal")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(accent)
+                Text(L10n.hudReadyToSubmit.t)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundColor(.black.opacity(0.55))
+                Spacer(minLength: 8)
+                hintBadge(text: L10n.hudSubmitHint.t, color: accent)
+            }
         } else if viewModel.snapshot.raw.isEmpty {
             HStack(spacing: 10) {
                 Text(L10n.hudHelp.t)

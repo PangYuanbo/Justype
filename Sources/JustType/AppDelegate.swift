@@ -221,8 +221,18 @@ extension AppDelegate: EventTapDelegate {
     func eventTapDidPressEnter() {
         DispatchQueue.main.async { [weak self] in
             guard let self = self, self.sessionActive else { return }
-            Task { [weak self] in
-                await self?.session.commitCandidateOrConvertNow()
+            // If there's nothing left to convert (raw is empty), treat ↩ as
+            // "submit" — inject committed text into the focused app, same as
+            // pressing the trigger key a second time. Otherwise it commits
+            // the current candidate (or force-converts pending raw).
+            if self.session.raw.isEmpty {
+                if !self.session.committed.isEmpty {
+                    self.finalizeSession()
+                }
+            } else {
+                Task { [weak self] in
+                    await self?.session.commitCandidateOrConvertNow()
+                }
             }
         }
     }
