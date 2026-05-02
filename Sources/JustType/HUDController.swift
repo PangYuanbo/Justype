@@ -8,6 +8,10 @@ import Combine
 struct HUDSnapshot: Equatable {
     var committed: String = ""
     var raw: String = ""
+    /// Caret position inside `raw`, in characters from the start. Used so the
+    /// blinking caret renders between letters when the user moves with arrow
+    /// keys.
+    var rawCursor: Int = 0
     var candidate: String? = nil
     var converting: Bool = false
     var error: String? = nil
@@ -16,6 +20,14 @@ struct HUDSnapshot: Equatable {
     var finalizing: Bool = false
     /// The final text shown during finalizing/result phase.
     var resultText: String = ""
+    /// When set, overrides the HUD with a "paste failed — kept on clipboard"
+    /// banner. Cleared on dismiss.
+    var clipboardFallback: ClipboardFallback? = nil
+
+    struct ClipboardFallback: Equatable {
+        var title: String
+        var hint: String
+    }
 }
 
 final class HUDViewModel: ObservableObject {
@@ -89,6 +101,20 @@ final class HUDController {
         viewModel.snapshot = s
     }
 
+    /// Show a "paste failed, content kept on clipboard" message. Useful when
+    /// `TextInjector` detects that Cmd+V didn't actually land in the focused
+    /// app (sandboxed app, no text field focused, etc.). Brings the panel
+    /// back up if it was already dismissed.
+    func showClipboardFallback(title: String, hint: String) {
+        var s = HUDSnapshot()
+        s.clipboardFallback = .init(title: title, hint: hint)
+        viewModel.snapshot = s
+        positionPanel()
+        panel.alphaValue = 1
+        panel.orderFrontRegardless()
+        viewModel.visible = true
+    }
+
     func dismiss(after seconds: TimeInterval = 0.0) {
         let work = DispatchWorkItem { [weak self] in self?.performDismiss() }
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: work)
@@ -123,6 +149,9 @@ struct HUDView: View {
     @ObservedObject var viewModel: HUDViewModel
 
     private var accent: Color {
+        if viewModel.snapshot.clipboardFallback != nil {
+            return Color(red: 1.00, green: 0.72, blue: 0.30)  // amber
+        }
         if viewModel.snapshot.error != nil {
             return Color(red: 1.00, green: 0.55, blue: 0.43)
         }
@@ -154,15 +183,19 @@ struct HUDView: View {
 
     private var card: some View {
         VStack(alignment: .leading, spacing: 12) {
-            inputRow
-            divider
-            candidateRow
-            if let err = viewModel.snapshot.error, !err.isEmpty {
-                Text(err)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(Color(red: 0.85, green: 0.30, blue: 0.20))
-                    .lineLimit(2)
-                    .transition(.opacity)
+            if let fb = viewModel.snapshot.clipboardFallback {
+                clipboardFallbackBanner(fb)
+            } else {
+                inputRow
+                divider
+                candidateRow
+                if let err = viewModel.snapshot.error, !err.isEmpty {
+                    Text(err)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Color(red: 0.85, green: 0.30, blue: 0.20))
+                        .lineLimit(2)
+                        .transition(.opacity)
+                }
             }
         }
         .padding(.horizontal, 22)
@@ -206,14 +239,25 @@ struct HUDView: View {
                             .font(.system(size: 18, weight: .semibold, design: .rounded))
                             .foregroundColor(.black.opacity(0.92))
                     }
-                    if !viewModel.snapshot.raw.isEmpty {
-                        Text(viewModel.snapshot.raw)
+                    let raw = viewModel.snapshot.raw
+                    let cursor = max(0, min(viewModel.snapshot.rawCursor, raw.count))
+                    let leftIdx = raw.index(raw.startIndex, offsetBy: cursor)
+                    let leftPart = String(raw[..<leftIdx])
+                    let rightPart = String(raw[leftIdx...])
+                    if !leftPart.isEmpty {
+                        Text(leftPart)
                             .font(.system(size: 16, weight: .medium, design: .monospaced))
                             .foregroundColor(.black.opacity(0.55))
                             .underline(true, color: accent.opacity(0.65))
                     }
                     BlinkingCaret(color: accent)
-                        .padding(.leading, 2)
+                        .padding(.horizontal, 1)
+                    if !rightPart.isEmpty {
+                        Text(rightPart)
+                            .font(.system(size: 16, weight: .medium, design: .monospaced))
+                            .foregroundColor(.black.opacity(0.55))
+                            .underline(true, color: accent.opacity(0.65))
+                    }
                 }
                 Spacer(minLength: 0)
             }
@@ -281,6 +325,26 @@ struct HUDView: View {
                     .foregroundColor(.black.opacity(0.40))
                 Spacer(minLength: 0)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func clipboardFallbackBanner(_ fb: HUDSnapshot.ClipboardFallback) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Image(systemName: "doc.on.clipboard")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(accent)
+                Text(fb.title)
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .foregroundColor(.black.opacity(0.92))
+                Spacer()
+            }
+            Text(fb.hint)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundColor(.black.opacity(0.55))
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

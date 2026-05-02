@@ -10,10 +10,17 @@ protocol EventTapDelegate: AnyObject {
     func eventTapDidReceiveCharacter(_ s: String)
     /// Backspace pressed while session is active.
     func eventTapDidPressBackspace()
+    /// Forward delete (Fn+Delete) pressed.
+    func eventTapDidPressForwardDelete()
     /// Enter pressed while session is active (commit candidate / force convert).
     func eventTapDidPressEnter()
     /// Escape pressed while session is active (abort).
     func eventTapDidPressEscape()
+    /// Caret motion keys.
+    func eventTapDidPressLeftArrow()
+    func eventTapDidPressRightArrow()
+    func eventTapDidPressHome()
+    func eventTapDidPressEnd()
 }
 
 final class EventTap {
@@ -118,9 +125,38 @@ final class EventTap {
                 self?.delegate?.eventTapDidPressBackspace()
             }
             return nil
+        case kVK_ForwardDelete:
+            DispatchQueue.main.async { [weak self] in
+                self?.delegate?.eventTapDidPressForwardDelete()
+            }
+            return nil
         case kVK_Return, kVK_ANSI_KeypadEnter:
             DispatchQueue.main.async { [weak self] in
                 self?.delegate?.eventTapDidPressEnter()
+            }
+            return nil
+        case kVK_LeftArrow:
+            DispatchQueue.main.async { [weak self] in
+                self?.delegate?.eventTapDidPressLeftArrow()
+            }
+            return nil
+        case kVK_RightArrow:
+            DispatchQueue.main.async { [weak self] in
+                self?.delegate?.eventTapDidPressRightArrow()
+            }
+            return nil
+        case kVK_UpArrow, kVK_DownArrow:
+            // Up/down don't make sense in a single-line raw segment — eat them
+            // so the focused app doesn't see them either.
+            return nil
+        case kVK_Home:
+            DispatchQueue.main.async { [weak self] in
+                self?.delegate?.eventTapDidPressHome()
+            }
+            return nil
+        case kVK_End:
+            DispatchQueue.main.async { [weak self] in
+                self?.delegate?.eventTapDidPressEnd()
             }
             return nil
         default:

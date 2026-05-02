@@ -193,16 +193,32 @@ Everything is in the menu-bar menu and the Settings window.
 
 Inside an active session (after the first trigger tap):
 
-| Key                      | Effect                                                        |
-| ------------------------ | ------------------------------------------------------------- |
-| Letters / numbers / `,.?!'-` / Space | Appended to the pending raw segment.            |
-| `↩` (when raw is non-empty)         | Convert the raw segment now (force-commit). Does **not** submit. |
-| `↩` (when everything is converted)  | Submit — paste the full text into the focused app.    |
-| Trigger key (second tap) | Same as "submit" above.                                       |
-| `⌫` Backspace            | Remove the last character from the raw segment, or from committed text if raw is empty. |
-| `Esc`                    | Abort. Nothing is pasted.                                     |
+| Key                                  | Effect                                              |
+| ------------------------------------ | --------------------------------------------------- |
+| Letters / numbers / `,.?!'-` / Space | Inserted into the raw segment **at the caret position**. |
+| `←` / `→`                            | Move the caret inside the raw segment.              |
+| `Home` / `End` (or Fn+←/→)           | Jump caret to start / end of raw segment.           |
+| `⌫` Backspace                        | Delete the character to the left of the caret. With raw empty, pulls the last character off the committed text. |
+| `Fn`+`⌫` (Forward Delete)            | Delete the character to the right of the caret.    |
+| `↩` (raw non-empty)                  | Convert the raw segment now (force-commit). Does **not** submit. |
+| `↩` (everything converted)           | Submit — paste the full text into the focused app. |
+| Trigger key (second tap)             | Same as "submit" above.                             |
+| `Esc`                                | Abort. Nothing is pasted.                           |
 
 Outside a session, JustType doesn't intercept any keys.
+
+### What if pasting fails?
+
+After ↩-submit, JustType verifies via Accessibility that the converted
+text actually appeared in the focused field. If it's clearly missing
+(e.g. nothing was focused, or a sandboxed app silently dropped the
+Cmd+V), JustType **leaves the converted text on your clipboard** and
+shows a quick amber HUD that says *"Couldn't paste — press ⌘V to
+insert."* Just press ⌘V wherever you want it to go.
+
+If JustType *can't* verify the paste either way (some Electron apps
+and a few web fields hide AXValue), the previous clipboard contents
+are restored optimistically.
 
 ---
 

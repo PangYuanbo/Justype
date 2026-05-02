@@ -64,6 +64,8 @@ enum L10n: String {
     case hudHelp
     case hudKeepTyping
     case hudReadyToSubmit
+    case hudPasteFailedTitle
+    case hudPasteFailedHint
 
     // Errors
     case errorMissingAPIKey
@@ -147,6 +149,8 @@ enum L10n: String {
         case .hudHelp:                return "Type → pause → a candidate appears below. ↩ accepts it. ↩ again to submit, or tap the trigger key."
         case .hudKeepTyping:          return "Keep typing…"
         case .hudReadyToSubmit:       return "All converted — press ↩ to submit"
+        case .hudPasteFailedTitle:    return "Couldn't paste"
+        case .hudPasteFailedHint:     return "The text is on your clipboard — press ⌘V to insert it manually."
 
         case .errorMissingAPIKey:     return "API key not set"
         case .errorInvalidURL:        return "Invalid Base URL"
@@ -221,6 +225,8 @@ enum L10n: String {
         case .hudHelp:                return "打字 → 停顿 → 候选出现在下方。↩ 接受候选;↩ 再按一次提交,或按一次触发键。"
         case .hudKeepTyping:          return "继续输入…"
         case .hudReadyToSubmit:       return "已全部转换 — 按 ↩ 提交"
+        case .hudPasteFailedTitle:    return "无法自动粘贴"
+        case .hudPasteFailedHint:     return "内容已复制到剪贴板,在目标输入框按 ⌘V 即可粘贴。"
 
         case .errorMissingAPIKey:     return "API Key 未配置"
         case .errorInvalidURL:        return "Base URL 无效"

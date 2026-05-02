@@ -10,6 +10,9 @@ final class MagicSession: ObservableObject {
     @Published var committed: String = ""
     /// The current raw keyboard segment being typed (not yet converted).
     @Published var raw: String = ""
+    /// Insertion point inside `raw`, in characters from the start. Lets the
+    /// user move the caret with arrow keys and edit mid-segment.
+    @Published var rawCursor: Int = 0
     /// LLM-converted candidate of `raw`, shown below as IME-style preview.
     @Published var candidate: String? = nil
     /// True while an LLM call for the current raw is in flight.
@@ -43,6 +46,7 @@ final class MagicSession: ObservableObject {
         inFlightForRaw = nil
         committed = ""
         raw = ""
+        rawCursor = 0
         candidate = nil
         converting = false
         errorMessage = nil
@@ -57,15 +61,22 @@ final class MagicSession: ObservableObject {
     // MARK: - Edit operations
 
     func append(_ s: String) {
-        raw += s
+        // Insert at the caret rather than always appending, so the user can
+        // edit mid-segment after moving with arrow keys.
+        let insertIdx = clampedCursorIndex()
+        raw.insert(contentsOf: s, at: insertIdx)
+        rawCursor = min(rawCursor + s.count, raw.count)
         candidate = nil
         errorMessage = nil
         scheduleConvert()
     }
 
+    /// Backspace: delete the character to the left of the caret.
     func backspace() {
-        if !raw.isEmpty {
-            raw.removeLast()
+        if rawCursor > 0 && !raw.isEmpty {
+            let target = raw.index(raw.startIndex, offsetBy: rawCursor - 1)
+            raw.remove(at: target)
+            rawCursor -= 1
             candidate = nil
             errorMessage = nil
             if raw.isEmpty {
@@ -74,10 +85,47 @@ final class MagicSession: ObservableObject {
             } else {
                 scheduleConvert()
             }
-        } else if !committed.isEmpty {
+        } else if rawCursor == 0 && raw.isEmpty && !committed.isEmpty {
             // Pull last character off committed text so the user can edit it.
             committed.removeLast()
         }
+    }
+
+    /// Forward delete (Fn+Delete on Mac): delete the character to the right
+    /// of the caret.
+    func forwardDelete() {
+        guard rawCursor < raw.count else { return }
+        let target = raw.index(raw.startIndex, offsetBy: rawCursor)
+        raw.remove(at: target)
+        candidate = nil
+        errorMessage = nil
+        if raw.isEmpty {
+            debounceTask?.cancel()
+            debounceTask = nil
+        } else {
+            scheduleConvert()
+        }
+    }
+
+    func moveCursorLeft() {
+        if rawCursor > 0 { rawCursor -= 1 }
+    }
+
+    func moveCursorRight() {
+        if rawCursor < raw.count { rawCursor += 1 }
+    }
+
+    func moveCursorHome() {
+        rawCursor = 0
+    }
+
+    func moveCursorEnd() {
+        rawCursor = raw.count
+    }
+
+    private func clampedCursorIndex() -> String.Index {
+        let safe = max(0, min(rawCursor, raw.count))
+        return raw.index(raw.startIndex, offsetBy: safe)
     }
 
     /// Enter pressed: commit the current candidate. If no candidate exists yet
@@ -87,6 +135,7 @@ final class MagicSession: ObservableObject {
             rawHistory.append(raw)
             committed += c
             raw = ""
+            rawCursor = 0
             candidate = nil
             debounceTask?.cancel()
             debounceTask = nil
@@ -177,6 +226,7 @@ final class MagicSession: ObservableObject {
                 rawHistory.append(snapshot)
                 committed += result
                 raw = ""
+                rawCursor = 0
                 candidate = nil
                 errorMessage = nil
             }

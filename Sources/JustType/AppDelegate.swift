@@ -24,30 +24,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         eventTap.delegate = self
         menuBar = MenuBarController()
 
-        // Mirror MagicSession state into the HUD.
-        Publishers.CombineLatest4(
-            session.$committed,
-            session.$raw,
-            Publishers.CombineLatest3(
-                session.$candidate,
-                session.$converting,
-                session.$errorMessage
-            ).map { ($0, $1, $2) }.eraseToAnyPublisher(),
-            session.$candidate // dummy second to satisfy CombineLatest4
-        )
-        .receive(on: RunLoop.main)
-        .sink { [weak self] committed, raw, triple, _ in
-            guard let self = self, self.sessionActive else { return }
-            let (cand, conv, err) = triple
-            var snap = HUDSnapshot()
-            snap.committed = committed
-            snap.raw = raw
-            snap.candidate = cand
-            snap.converting = conv
-            snap.error = err
-            self.hud.update(snap)
-        }
-        .store(in: &sessionCancellables)
+        // Mirror MagicSession state into the HUD. Any @Published change
+        // bumps objectWillChange, so we just rebuild the snapshot from the
+        // session's current values.
+        session.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in
+                guard let self = self, self.sessionActive else { return }
+                // objectWillChange fires before the @Published value changes,
+                // so dispatch a tick later to read the new state.
+                DispatchQueue.main.async {
+                    var snap = HUDSnapshot()
+                    snap.committed = self.session.committed
+                    snap.raw = self.session.raw
+                    snap.rawCursor = self.session.rawCursor
+                    snap.candidate = self.session.candidate
+                    snap.converting = self.session.converting
+                    snap.error = self.session.errorMessage
+                    self.hud.update(snap)
+                }
+            }
+            .store(in: &sessionCancellables)
 
         menuBar.onToggleEnabled = { [weak self] enabled in
             guard let self = self else { return }
@@ -178,13 +175,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             try? await Task.sleep(nanoseconds: 250_000_000)
             await MainActor.run {
-                TextInjector.inject(final)
-                self.hud.dismiss(after: 0.05)
-                // Watch the focused field for any post-paste edit; if the
-                // user manually corrects what we pasted, that becomes a
-                // training example for next time.
-                if !rawCombined.isEmpty {
-                    EditWatcher.shared.observe(raw: rawCombined, injected: final)
+                TextInjector.inject(final) { [weak self] result in
+                    guard let self = self else { return }
+                    switch result {
+                    case .verified, .unverifiable:
+                        // Paste landed (or we can't tell — assume OK).
+                        self.hud.dismiss(after: 0.05)
+                        if !rawCombined.isEmpty {
+                            EditWatcher.shared.observe(raw: rawCombined, injected: final)
+                        }
+                    case .failedKeptInClipboard:
+                        // Paste didn't make it into the focused field — the
+                        // text is sitting in the user's clipboard. Surface
+                        // that so they can paste manually.
+                        self.hud.showClipboardFallback(
+                            title: L10n.hudPasteFailedTitle.t,
+                            hint: L10n.hudPasteFailedHint.t
+                        )
+                        self.hud.dismiss(after: 4.5)
+                    }
                 }
             }
         }
@@ -249,6 +258,41 @@ extension AppDelegate: EventTapDelegate {
         DispatchQueue.main.async { [weak self] in
             guard let self = self, self.sessionActive else { return }
             self.abortSession()
+        }
+    }
+
+    func eventTapDidPressForwardDelete() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.sessionActive else { return }
+            self.session.forwardDelete()
+        }
+    }
+
+    func eventTapDidPressLeftArrow() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.sessionActive else { return }
+            self.session.moveCursorLeft()
+        }
+    }
+
+    func eventTapDidPressRightArrow() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.sessionActive else { return }
+            self.session.moveCursorRight()
+        }
+    }
+
+    func eventTapDidPressHome() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.sessionActive else { return }
+            self.session.moveCursorHome()
+        }
+    }
+
+    func eventTapDidPressEnd() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.sessionActive else { return }
+            self.session.moveCursorEnd()
         }
     }
 }
