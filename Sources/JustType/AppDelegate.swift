@@ -13,6 +13,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sessionActive: Bool = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Install a minimal main menu so Cmd+C/V/X/A/Z work in our text fields.
+        // Accessory apps (LSUIElement) don't get a default menu bar, which means
+        // the standard editing keybindings have nowhere to dispatch.
+        installMainMenu()
+
         hud = HUDController()
         session = MagicSession()
         eventTap = EventTap()
@@ -70,6 +75,62 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         eventTap?.stop()
+    }
+
+    private func installMainMenu() {
+        let main = NSMenu()
+
+        // Application menu (first item, shown as the app name).
+        let appItem = NSMenuItem()
+        let appMenu = NSMenu()
+        appMenu.addItem(NSMenuItem(
+            title: "关于 JustType",
+            action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+            keyEquivalent: ""
+        ))
+        appMenu.addItem(NSMenuItem.separator())
+        let hide = NSMenuItem(
+            title: "隐藏 JustType",
+            action: #selector(NSApplication.hide(_:)),
+            keyEquivalent: "h"
+        )
+        appMenu.addItem(hide)
+        appMenu.addItem(NSMenuItem.separator())
+        appMenu.addItem(NSMenuItem(
+            title: "退出 JustType",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q"
+        ))
+        appItem.submenu = appMenu
+        main.addItem(appItem)
+
+        // Edit menu — required for Cmd+C/V/X/A/Z to work in text fields.
+        let editItem = NSMenuItem()
+        let editMenu = NSMenu(title: "编辑")
+        editMenu.addItem(NSMenuItem(title: "撤销", action: Selector(("undo:")), keyEquivalent: "z"))
+        let redo = NSMenuItem(title: "重做", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(redo)
+        editMenu.addItem(NSMenuItem.separator())
+        editMenu.addItem(NSMenuItem(title: "剪切", action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
+        editMenu.addItem(NSMenuItem(title: "拷贝", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
+        editMenu.addItem(NSMenuItem(title: "粘贴", action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
+        editMenu.addItem(NSMenuItem(title: "全选", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
+        editItem.submenu = editMenu
+        main.addItem(editItem)
+
+        // Window menu — provides ⌘W close.
+        let windowItem = NSMenuItem()
+        let windowMenu = NSMenu(title: "窗口")
+        windowMenu.addItem(NSMenuItem(
+            title: "关闭",
+            action: #selector(NSWindow.performClose(_:)),
+            keyEquivalent: "w"
+        ))
+        windowItem.submenu = windowMenu
+        main.addItem(windowItem)
+
+        NSApp.mainMenu = main
     }
 
     // MARK: - Session lifecycle
