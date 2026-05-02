@@ -23,6 +23,10 @@ struct HUDSnapshot: Equatable {
     /// When set, overrides the HUD with a "paste failed — kept on clipboard"
     /// banner. Cleared on dismiss.
     var clipboardFallback: ClipboardFallback? = nil
+    /// True when the user has explicitly selected the entire box. The HUD
+    /// renders the text with a highlight and the next typed character (or
+    /// Backspace) clears everything.
+    var allSelected: Bool = false
 
     struct ClipboardFallback: Equatable {
         var title: String
@@ -33,6 +37,9 @@ struct HUDSnapshot: Equatable {
 final class HUDViewModel: ObservableObject {
     @Published var snapshot: HUDSnapshot = HUDSnapshot()
     @Published var visible: Bool = false
+    /// Invoked when the user clicks anywhere on the HUD card. Used to
+    /// trigger select-all (mouse equivalent of ⌘A).
+    var onCardTap: (() -> Void)?
 }
 
 // MARK: - Controller
@@ -58,7 +65,11 @@ final class HUDController {
         panel.backgroundColor = .clear
         panel.hasShadow = false
         panel.hidesOnDeactivate = false
-        panel.ignoresMouseEvents = true
+        // Accept mouse events so the user can click to select-all, but the
+        // panel is non-activating: clicks won't steal focus from whichever
+        // app the user was typing into.
+        panel.ignoresMouseEvents = false
+        panel.becomesKeyOnlyIfNeeded = true
 
         let host = NSHostingView(rootView: HUDView(viewModel: viewModel))
         host.translatesAutoresizingMaskIntoConstraints = true
@@ -82,6 +93,11 @@ final class HUDController {
 
     func update(_ snapshot: HUDSnapshot) {
         viewModel.snapshot = snapshot
+    }
+
+    /// Set a closure invoked when the user clicks anywhere on the HUD card.
+    func setTapHandler(_ handler: @escaping () -> Void) {
+        viewModel.onCardTap = handler
     }
 
     func showResult(_ text: String) {
@@ -198,6 +214,10 @@ struct HUDView: View {
                 }
             }
         }
+        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .onTapGesture {
+            viewModel.onCardTap?()
+        }
         .padding(.horizontal, 22)
         .padding(.vertical, 18)
         .background(background)
@@ -233,6 +253,24 @@ struct HUDView: View {
                     Text(L10n.hudWaiting.t)
                         .font(.system(size: 16, weight: .medium, design: .rounded))
                         .foregroundColor(.black.opacity(0.42))
+                } else if viewModel.snapshot.allSelected {
+                    // Render committed + raw inside a single highlighted
+                    // capsule. The next typed character (or Backspace)
+                    // replaces / clears everything.
+                    let combined = viewModel.snapshot.committed + viewModel.snapshot.raw
+                    Text(combined)
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundColor(.black.opacity(0.92))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(accent.opacity(0.30))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .strokeBorder(accent.opacity(0.55), lineWidth: 1)
+                        )
                 } else {
                     if !viewModel.snapshot.committed.isEmpty {
                         Text(viewModel.snapshot.committed)

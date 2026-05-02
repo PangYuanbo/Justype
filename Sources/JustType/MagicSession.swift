@@ -19,6 +19,10 @@ final class MagicSession: ObservableObject {
     @Published var converting: Bool = false
     /// Most recent error message (transient).
     @Published var errorMessage: String? = nil
+    /// True when the user has explicitly selected the entire box
+    /// (click on the HUD or ⌘A). The next typed character replaces
+    /// everything, or Backspace clears it.
+    @Published var allSelected: Bool = false
 
     /// Optional screenshot taken at session start, reused for every LLM call.
     private var contextImage: Data? = nil
@@ -50,6 +54,7 @@ final class MagicSession: ObservableObject {
         candidate = nil
         converting = false
         errorMessage = nil
+        allSelected = false
         rawHistory = []
         contextImage = AppState.shared.useScreenContext
             ? Screenshotter.capturePrimary()
@@ -61,6 +66,14 @@ final class MagicSession: ObservableObject {
     // MARK: - Edit operations
 
     func append(_ s: String) {
+        // If everything is currently "selected", treat the next character as
+        // a replacement: blow away committed + raw, then insert.
+        if allSelected {
+            committed = ""
+            raw = ""
+            rawCursor = 0
+            allSelected = false
+        }
         // Insert at the caret rather than always appending, so the user can
         // edit mid-segment after moving with arrow keys.
         let insertIdx = clampedCursorIndex()
@@ -71,8 +84,20 @@ final class MagicSession: ObservableObject {
         scheduleConvert()
     }
 
-    /// Backspace: delete the character to the left of the caret.
+    /// Backspace: delete the character to the left of the caret. When
+    /// `allSelected` is on, clears the entire box instead.
     func backspace() {
+        if allSelected {
+            committed = ""
+            raw = ""
+            rawCursor = 0
+            candidate = nil
+            errorMessage = nil
+            allSelected = false
+            debounceTask?.cancel()
+            debounceTask = nil
+            return
+        }
         if rawCursor > 0 && !raw.isEmpty {
             let target = raw.index(raw.startIndex, offsetBy: rawCursor - 1)
             raw.remove(at: target)
@@ -91,9 +116,30 @@ final class MagicSession: ObservableObject {
         }
     }
 
+    /// Select everything currently displayed in the box. Triggered by ⌘A or
+    /// a click on the HUD.
+    func selectAll() {
+        if committed.isEmpty && raw.isEmpty {
+            allSelected = false
+            return
+        }
+        allSelected = true
+    }
+
+    /// Drop the "all selected" highlight without modifying the buffer. Used
+    /// when a non-mutating action (arrow key, Esc) happens after select-all.
+    func deselect() {
+        if allSelected { allSelected = false }
+    }
+
     /// Forward delete (Fn+Delete on Mac): delete the character to the right
-    /// of the caret.
+    /// of the caret. When `allSelected` is on, behaves like Backspace and
+    /// clears everything.
     func forwardDelete() {
+        if allSelected {
+            backspace()
+            return
+        }
         guard rawCursor < raw.count else { return }
         let target = raw.index(raw.startIndex, offsetBy: rawCursor)
         raw.remove(at: target)
@@ -108,18 +154,22 @@ final class MagicSession: ObservableObject {
     }
 
     func moveCursorLeft() {
+        deselect()
         if rawCursor > 0 { rawCursor -= 1 }
     }
 
     func moveCursorRight() {
+        deselect()
         if rawCursor < raw.count { rawCursor += 1 }
     }
 
     func moveCursorHome() {
+        deselect()
         rawCursor = 0
     }
 
     func moveCursorEnd() {
+        deselect()
         rawCursor = raw.count
     }
 

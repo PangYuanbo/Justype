@@ -41,10 +41,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     snap.candidate = self.session.candidate
                     snap.converting = self.session.converting
                     snap.error = self.session.errorMessage
+                    snap.allSelected = self.session.allSelected
                     self.hud.update(snap)
                 }
             }
             .store(in: &sessionCancellables)
+
+        // Mouse-click on the HUD = ⌘A inside the magic box.
+        hud.setTapHandler { [weak self] in
+            guard let self = self, self.sessionActive else { return }
+            self.session.selectAll()
+        }
 
         menuBar.onToggleEnabled = { [weak self] enabled in
             guard let self = self else { return }
@@ -293,6 +300,13 @@ extension AppDelegate: EventTapDelegate {
         DispatchQueue.main.async { [weak self] in
             guard let self = self, self.sessionActive else { return }
             self.session.moveCursorEnd()
+        }
+    }
+
+    func eventTapDidPressSelectAll() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.sessionActive else { return }
+            self.session.selectAll()
         }
     }
 }

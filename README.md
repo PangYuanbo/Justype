@@ -95,31 +95,37 @@ so the final paste lands exactly where you were typing before.
 
 ## Install
 
-### Option A — DMG (recommended)
-
-1. Download `JustType.dmg` from the
+1. Download `JustType.zip` from the
    [latest release](https://github.com/PangYuanbo/Justype/releases/latest).
-2. Double-click the DMG, drag **JustType** into **Applications**.
-3. Eject the DMG.
+2. Double-click the zip to extract `JustType.app`.
+3. Drag `JustType.app` into `/Applications`.
 
-### Option B — ZIP
+### First launch — Gatekeeper workaround
 
-1. Download `JustType.zip` from the latest release.
-2. Unzip, drag the `.app` into `/Applications`.
+JustType ships signed with an Apple Development certificate but is **not
+notarized** (notarization needs a paid $99/yr Apple Developer Program
+membership). On first launch macOS will block it with one of these:
 
-### Gatekeeper note
+> "JustType" can't be opened because Apple cannot check it for malicious
+> software.
 
-Releases are signed with an Apple Development certificate but **not
-notarized**. The first time you launch, macOS will refuse and tell you
-"JustType can't be opened because Apple cannot check it for malicious
-software." Two ways past:
+> Apple could not verify "JustType" is free of malware…
 
-- **Right-click `JustType.app` → Open** (the dialog will offer an
-  *Open* button).
-- Or: System Settings → Privacy & Security, scroll down, click
-  *Open Anyway* next to the JustType notice.
+This is a one-time workaround:
 
-You only need to do this once.
+1. Open `/Applications` in Finder.
+2. **Right-click** `JustType.app` → **Open**.
+3. In the dialog that appears, click **Open** again.
+
+Or, if you've already double-clicked it once and got the warning:
+
+1. Open **System Settings → Privacy & Security**.
+2. Scroll down — you'll see "JustType was blocked from use because it
+   is not from an identified developer." Click **Open Anyway** beside it.
+3. Confirm in the next dialog.
+
+After this one-time approval, JustType launches normally — no more
+warnings.
 
 ---
 

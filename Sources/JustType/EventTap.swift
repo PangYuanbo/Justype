@@ -21,6 +21,8 @@ protocol EventTapDelegate: AnyObject {
     func eventTapDidPressRightArrow()
     func eventTapDidPressHome()
     func eventTapDidPressEnd()
+    /// ⌘A — select everything currently in the magic box.
+    func eventTapDidPressSelectAll()
 }
 
 final class EventTap {
@@ -113,6 +115,20 @@ final class EventTap {
 
     private func handleKeyDown(event: CGEvent) -> Unmanaged<CGEvent>? {
         let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
+        let flags = event.flags
+
+        // Cmd+A → select all in the magic box.
+        if flags.contains(.maskCommand) && keyCode == kVK_ANSI_A {
+            DispatchQueue.main.async { [weak self] in
+                self?.delegate?.eventTapDidPressSelectAll()
+            }
+            return nil
+        }
+        // Any other Cmd-modified keystroke while consuming: swallow it so
+        // shortcuts like Cmd+W don't close windows underneath the magic box.
+        if flags.contains(.maskCommand) {
+            return nil
+        }
 
         switch keyCode {
         case kVK_Escape:
