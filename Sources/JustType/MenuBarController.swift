@@ -33,6 +33,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.rebuild() }
             .store(in: &cancellables)
+        CorrectionStore.shared.$entries
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.rebuild() }
+            .store(in: &cancellables)
     }
 
     private func configureButton() {
@@ -119,6 +123,39 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         historyItem.submenu = historyMenu
         menu.addItem(historyItem)
 
+        // Corrections submenu — shows the learned corrections that get
+        // appended to future prompts, with a "Clear" option.
+        let correctionItem = NSMenuItem(title: L10n.menuCorrections.t, action: nil, keyEquivalent: "")
+        let correctionMenu = NSMenu()
+        let correctionEntries = CorrectionStore.shared.entries
+        if correctionEntries.isEmpty {
+            let empty = NSMenuItem(title: L10n.menuHistoryEmpty.t, action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            correctionMenu.addItem(empty)
+        } else {
+            let count = NSMenuItem(
+                title: "\(L10n.menuCorrectionsCount.t): \(correctionEntries.count)",
+                action: nil,
+                keyEquivalent: ""
+            )
+            count.isEnabled = false
+            correctionMenu.addItem(count)
+            correctionMenu.addItem(.separator())
+            for c in correctionEntries.suffix(20) {
+                let title = "\(truncate(c.badOutput, 20)) → \(truncate(c.goodOutput, 20))"
+                let mi = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+                mi.isEnabled = false
+                mi.toolTip = "raw: \(c.raw)\nbad:  \(c.badOutput)\ngood: \(c.goodOutput)"
+                correctionMenu.addItem(mi)
+            }
+            correctionMenu.addItem(.separator())
+            let clear = NSMenuItem(title: L10n.menuClearCorrections.t, action: #selector(clearCorrections), keyEquivalent: "")
+            clear.target = self
+            correctionMenu.addItem(clear)
+        }
+        correctionItem.submenu = correctionMenu
+        menu.addItem(correctionItem)
+
         menu.addItem(.separator())
 
         let quit = NSMenuItem(title: L10n.menuQuit.t, action: #selector(quit), keyEquivalent: "q")
@@ -172,6 +209,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func clearHistory() {
         HistoryStore.shared.clear()
+    }
+
+    @objc private func clearCorrections() {
+        CorrectionStore.shared.clear()
+        rebuild()
     }
 
     @objc private func quit() {

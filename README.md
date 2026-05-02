@@ -222,6 +222,13 @@ remote. Specifically:
 - **History.** The 50 most recent input/output pairs are saved to
   `~/Library/Application Support/JustType/history.json`. Use *History
   → Clear History* to wipe it.
+- **Learned corrections.** When you manually edit a chunk of text right
+  after JustType pastes it, JustType reads the new content via the
+  Accessibility API and stores `(raw, what-we-produced, what-you-changed-it-to)`
+  in `~/Library/Application Support/JustType/corrections.json` (capped
+  at 50 entries). The most recent ~8 are appended to the system prompt
+  on every subsequent request, so the model picks up your preferences
+  over time. Inspect / clear from menu bar → *Learned Corrections*.
 - **API key.** Stored in `UserDefaults`. JustType ships with no key;
   the value is whatever you paste in.
 - **Telemetry.** None. There is no analytics, crash reporter, or
@@ -283,6 +290,8 @@ Sources/JustType/
   TextInjector.swift          # Cmd+V paste with input-source juggling
   InputSourceManager.swift    # Carbon TIS helpers
   HistoryStore.swift          # last-50 history JSON
+  CorrectionStore.swift       # learned `(raw → bad → good)` triples
+  EditWatcher.swift           # AX-reads focused field after paste, detects edits
   AccessibilityHelper.swift   # AXIsProcessTrusted + system settings deep-link
   L10n.swift                  # English/Chinese string table
 Resources/
@@ -336,6 +345,15 @@ shown as a candidate but not auto-committed. ↩ commits.
 the prompt is structured so the model sees the previous segment as
 `ALREADY_WRITTEN:` context and only translates the new `TO_CONVERT:`
 segment, then continues naturally.
+
+**Learned corrections.** After a paste, `EditWatcher` reads the focused
+text field via Accessibility, locates our injected text using
+prefix/suffix anchors from the baseline, and waits ~8 seconds. If the
+content of that region has changed, the difference is recorded in
+`CorrectionStore` as a `(raw → bad → good)` triple. The most recent
+~8 triples are appended to the system prompt on every future request
+as authoritative user preferences — so a habit like "I always write
+*Beijing* not *北京*" gets respected after the first correction.
 
 **Pasting back.** Final injection goes through the system clipboard
 (Cmd+V). Before pasting, JustType:

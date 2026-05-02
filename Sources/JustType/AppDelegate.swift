@@ -166,6 +166,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { [weak self] in
             guard let self = self else { return }
             let final = await self.session.finalize()
+            // Capture raw history before the session is reused next time.
+            let rawCombined = self.session.combinedRaw
             await MainActor.run {
                 if final.isEmpty {
                     self.hud.dismiss()
@@ -178,6 +180,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             await MainActor.run {
                 TextInjector.inject(final)
                 self.hud.dismiss(after: 0.05)
+                // Watch the focused field for any post-paste edit; if the
+                // user manually corrects what we pasted, that becomes a
+                // training example for next time.
+                if !rawCombined.isEmpty {
+                    EditWatcher.shared.observe(raw: rawCombined, injected: final)
+                }
             }
         }
     }

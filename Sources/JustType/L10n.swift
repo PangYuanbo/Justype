@@ -27,6 +27,9 @@ enum L10n: String {
     case menuClearHistory
     case menuQuit
     case menuLanguage
+    case menuCorrections
+    case menuCorrectionsCount
+    case menuClearCorrections
 
     // Trigger names
     case triggerFn
@@ -110,6 +113,9 @@ enum L10n: String {
         case .menuClearHistory:       return "Clear History"
         case .menuQuit:               return "Quit JustType"
         case .menuLanguage:           return "Language"
+        case .menuCorrections:        return "Learned Corrections"
+        case .menuCorrectionsCount:   return "Saved corrections"
+        case .menuClearCorrections:   return "Clear Corrections"
 
         case .triggerFn:              return "Fn"
         case .triggerRightOption:     return "Right Option (⌥)"
@@ -181,6 +187,9 @@ enum L10n: String {
         case .menuClearHistory:       return "清空历史"
         case .menuQuit:               return "退出 JustType"
         case .menuLanguage:           return "界面语言"
+        case .menuCorrections:        return "已学习的纠正"
+        case .menuCorrectionsCount:   return "已记录纠正条数"
+        case .menuClearCorrections:   return "清空纠正记录"
 
         case .triggerFn:              return "Fn"
         case .triggerRightOption:     return "Right Option (⌥)"

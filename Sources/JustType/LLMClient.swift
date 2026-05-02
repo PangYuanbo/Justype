@@ -21,7 +21,7 @@ enum LLMError: LocalizedError {
 final class LLMClient {
     static let shared = LLMClient()
 
-    static let systemPrompt = """
+    static let basePrompt = """
     The input is a raw stream of keystrokes the user typed directly on the keyboard, without any IME or autocorrect in between. It usually has no punctuation, no word boundaries, no casing, and may contain typos, missing letters, or run-on tokens. It represents what the user wants to express, written in the "naked" keyboard form that an IME would normally turn into the final text.
 
     A screenshot of the user's current screen may also be attached. Use it ONLY as context to help understand what the user is trying to write — for example: which app they're in, the language of the surrounding text, the cursor's neighborhood, technical terms or names visible on screen. Do NOT transcribe or describe the screenshot, and do NOT insert content from it. The output must come only from converting the typed keystrokes.
@@ -43,6 +43,24 @@ final class LLMClient {
     xin chao the gioi → Xin chào thế giới
     hello world → hello world
     """
+
+    /// Builds the actual system prompt used for a single request. Appends
+    /// recent user-specific corrections (input / what we previously
+    /// produced / what they corrected it to) so the model can learn this
+    /// user's preferences over time.
+    static func systemPrompt() -> String {
+        let recent = CorrectionStore.shared.recent(8)
+        guard !recent.isEmpty else { return basePrompt }
+        var lines: [String] = []
+        lines.append("\nUser-specific corrections — these are real cases where this user manually edited your previous output. Treat them as authoritative preferences. Apply the same style/word choice/casing/punctuation in the current request whenever the input situation is similar.")
+        for c in recent {
+            lines.append("input: \(c.raw)")
+            lines.append("you previously produced: \(c.badOutput)")
+            lines.append("user corrected to: \(c.goodOutput)")
+            lines.append("---")
+        }
+        return basePrompt + "\n" + lines.joined(separator: "\n")
+    }
 
     func convert(_ raw: String, imageData: Data? = nil, prefixContext: String = "") async throws -> String {
         let state = AppState.shared
@@ -99,7 +117,7 @@ final class LLMClient {
             "model": state.model,
             "temperature": 0.2,
             "messages": [
-                ["role": "system", "content": Self.systemPrompt],
+                ["role": "system", "content": Self.systemPrompt()],
                 ["role": "user",   "content": userContent]
             ]
         ]

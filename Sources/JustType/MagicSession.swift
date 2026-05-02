@@ -20,6 +20,16 @@ final class MagicSession: ObservableObject {
     /// Optional screenshot taken at session start, reused for every LLM call.
     private var contextImage: Data? = nil
 
+    /// Per-session log of every (raw → committed) pair. Used by the
+    /// post-paste edit watcher to attribute corrections.
+    private(set) var rawHistory: [String] = []
+
+    /// All raw segments concatenated with single spaces — useful as a single
+    /// "what the user originally typed" payload for correction attribution.
+    var combinedRaw: String {
+        rawHistory.joined(separator: " ")
+    }
+
     private var debounceTask: DispatchWorkItem?
     private var inFlightForRaw: String? = nil
 
@@ -36,6 +46,7 @@ final class MagicSession: ObservableObject {
         candidate = nil
         converting = false
         errorMessage = nil
+        rawHistory = []
         contextImage = AppState.shared.useScreenContext
             ? Screenshotter.capturePrimary()
             : nil
@@ -73,6 +84,7 @@ final class MagicSession: ObservableObject {
     /// (raw too fresh), force-convert first then commit.
     func commitCandidateOrConvertNow() async {
         if let c = candidate {
+            rawHistory.append(raw)
             committed += c
             raw = ""
             candidate = nil
@@ -162,6 +174,7 @@ final class MagicSession: ObservableObject {
                 prefixContext: committed
             )
             if raw == snapshot {
+                rawHistory.append(snapshot)
                 committed += result
                 raw = ""
                 candidate = nil
