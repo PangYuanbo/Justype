@@ -8,9 +8,9 @@ enum TriggerKey: String, CaseIterable, Codable {
 
     var displayName: String {
         switch self {
-        case .fn:          return "Fn"
-        case .rightOption: return "Right Option (⌥)"
-        case .capsLock:    return "Caps Lock"
+        case .fn:          return L10n.triggerFn.t
+        case .rightOption: return L10n.triggerRightOption.t
+        case .capsLock:    return L10n.triggerCapsLock.t
         }
     }
 

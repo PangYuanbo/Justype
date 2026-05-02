@@ -12,6 +12,7 @@ final class AppState: ObservableObject {
         static let apiKey           = "jt.apiKey"
         static let model            = "jt.model"
         static let useScreenContext = "jt.useScreenContext"
+        static let language         = "jt.language"
     }
 
     @Published var enabled: Bool {
@@ -38,6 +39,10 @@ final class AppState: ObservableObject {
         didSet { defaults.set(useScreenContext, forKey: Keys.useScreenContext) }
     }
 
+    @Published var language: Language {
+        didSet { defaults.set(language.rawValue, forKey: Keys.language) }
+    }
+
     private init() {
         self.enabled = defaults.object(forKey: Keys.enabled) as? Bool ?? true
         let triggerRaw = defaults.string(forKey: Keys.trigger) ?? TriggerKey.fn.rawValue
@@ -46,5 +51,9 @@ final class AppState: ObservableObject {
         self.apiKey  = defaults.string(forKey: Keys.apiKey) ?? ""
         self.model   = defaults.string(forKey: Keys.model) ?? "google/gemini-2.5-flash"
         self.useScreenContext = defaults.object(forKey: Keys.useScreenContext) as? Bool ?? true
+        // Default to English for international users; keep an existing user
+        // preference if one was saved previously.
+        let langRaw = defaults.string(forKey: Keys.language) ?? Language.en.rawValue
+        self.language = Language(rawValue: langRaw) ?? .en
     }
 }

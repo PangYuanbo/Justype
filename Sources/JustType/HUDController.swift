@@ -197,7 +197,7 @@ struct HUDView: View {
                     .foregroundColor(accent)
                     .padding(.trailing, 6)
                 if viewModel.snapshot.committed.isEmpty && viewModel.snapshot.raw.isEmpty {
-                    Text("等待输入…")
+                    Text(L10n.hudWaiting.t)
                         .font(.system(size: 16, weight: .medium, design: .rounded))
                         .foregroundColor(.black.opacity(0.42))
                 } else {
@@ -236,7 +236,7 @@ struct HUDView: View {
                 Image(systemName: "sparkles")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(accent)
-                Text("正在转换…")
+                Text(L10n.hudConverting.t)
                     .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundColor(.black.opacity(0.55))
                 ConvertingDots(color: accent)
@@ -252,11 +252,11 @@ struct HUDView: View {
                     .foregroundColor(.black.opacity(0.85))
                     .lineLimit(2)
                 Spacer(minLength: 8)
-                hintBadge(text: "↩ 接受", color: accent)
+                hintBadge(text: L10n.hudAcceptHint.t, color: accent)
             }
         } else if viewModel.snapshot.raw.isEmpty {
             HStack(spacing: 10) {
-                Text("打字 → 停顿 → 候选会出现在这里。再按一次触发键完成输入。")
+                Text(L10n.hudHelp.t)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundColor(.black.opacity(0.45))
                     .lineLimit(2)
@@ -264,7 +264,7 @@ struct HUDView: View {
             }
         } else {
             HStack(spacing: 10) {
-                Text("继续输入…")
+                Text(L10n.hudKeepTyping.t)
                     .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundColor(.black.opacity(0.40))
                 Spacer(minLength: 0)

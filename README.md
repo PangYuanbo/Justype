@@ -41,7 +41,8 @@ Click the menu-bar keyboard icon → **LLM 设置** to configure:
   one.
 - Model — defaults to `google/gemini-2.5-flash`.
 
-Trigger key, screen-context toggle, and history are also in that menu.
+Trigger key, screen-context toggle, language (English / 中文), and history
+are also in that menu.
 
 ## Build from source
 

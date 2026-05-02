@@ -9,15 +9,17 @@ final class SettingsWindowController: NSWindowController {
         let view = SettingsView()
         let hosting = NSHostingController(rootView: view)
         let window = NSWindow(contentViewController: hosting)
-        window.title = "JustType 设置"
+        window.title = L10n.settingsTitle.t
         window.styleMask = [.titled, .closable]
-        window.setContentSize(NSSize(width: 540, height: 480))
+        window.setContentSize(NSSize(width: 540, height: 520))
         window.isReleasedWhenClosed = false
         window.center()
         self.init(window: window)
     }
 
     func show() {
+        // Refresh title in case the language changed since last open.
+        window?.title = L10n.settingsTitle.t
         NSApp.activate(ignoringOtherApps: true)
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
@@ -52,25 +54,43 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
 
+            // Appearance / language picker
+            VStack(alignment: .leading, spacing: 8) {
+                sectionTitle(L10n.settingsAppearance.t)
+                LabeledField(L10n.settingsLanguage.t) {
+                    Picker("", selection: $state.language) {
+                        ForEach(Language.allCases, id: \.self) { lang in
+                            Text(lang.displayName).tag(lang)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 240)
+                    Spacer()
+                }
+            }
+
+            Divider()
+
             // Endpoint section
             VStack(alignment: .leading, spacing: 10) {
-                sectionTitle("Endpoint")
+                sectionTitle(L10n.settingsEndpointSection.t)
 
-                LabeledField("Base URL") {
+                LabeledField(L10n.settingsBaseURL.t) {
                     TextField("https://openrouter.ai/api/v1", text: $state.baseURL)
                         .textFieldStyle(.roundedBorder)
                         .onChange(of: state.baseURL) { _, _ in scheduleRefresh() }
                 }
-                LabeledField("API Key") {
+                LabeledField(L10n.settingsAPIKey.t) {
                     HStack(spacing: 8) {
                         SecureField("sk-or-…", text: $state.apiKey)
                             .textFieldStyle(.roundedBorder)
                             .onChange(of: state.apiKey) { _, _ in scheduleRefresh() }
-                        Button("清空") { state.apiKey = "" }
+                        Button(L10n.settingsClearButton.t) { state.apiKey = "" }
                             .buttonStyle(.bordered)
                     }
                 }
-                Text("免费注册 OpenRouter 拿 key：openrouter.ai/keys")
+                Text(L10n.settingsKeyHint.t)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -80,13 +100,13 @@ struct SettingsView: View {
             // Model picker
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline) {
-                    sectionTitle("Model")
+                    sectionTitle(L10n.settingsModelSection.t)
                     Spacer()
                     if loading {
                         ProgressView().controlSize(.small)
-                        Text("加载中…").font(.caption).foregroundColor(.secondary)
+                        Text(L10n.settingsLoading.t).font(.caption).foregroundColor(.secondary)
                     } else {
-                        Text("可用：\(models.count)")
+                        Text(L10n.availableCount(models.count))
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Button {
@@ -96,16 +116,16 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.borderless)
                         .disabled(state.apiKey.isEmpty)
-                        .help("刷新模型列表")
+                        .help(L10n.settingsRefreshTooltip.t)
                     }
                 }
 
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.secondary)
-                    TextField("搜索模型…", text: $search)
+                    TextField(L10n.settingsSearchPlaceholder.t, text: $search)
                         .textFieldStyle(.plain)
-                    Toggle("仅看支持图片", isOn: $visionOnly)
+                    Toggle(L10n.settingsVisionOnly.t, isOn: $visionOnly)
                         .toggleStyle(.checkbox)
                         .font(.caption)
                 }
@@ -118,9 +138,9 @@ struct SettingsView: View {
 
                 modelListView
 
-                LabeledField("当前") {
+                LabeledField(L10n.settingsCurrent.t) {
                     HStack(spacing: 6) {
-                        Text(state.model.isEmpty ? "（未选择）" : state.model)
+                        Text(state.model.isEmpty ? L10n.settingsNoneSelected.t : state.model)
                             .font(.system(.body, design: .monospaced))
                             .lineLimit(1)
                             .truncationMode(.middle)
@@ -140,7 +160,7 @@ struct SettingsView: View {
 
             // Test row
             HStack {
-                Button(testing ? "测试中…" : "测试当前配置") { runTest() }
+                Button(testing ? L10n.settingsTesting.t : L10n.settingsTestButton.t) { runTest() }
                     .disabled(testing || state.apiKey.isEmpty || state.model.isEmpty)
                 Spacer()
                 if !testStatus.isEmpty {
@@ -152,7 +172,7 @@ struct SettingsView: View {
             }
         }
         .padding(20)
-        .frame(width: 540, height: 480, alignment: .topLeading)
+        .frame(width: 540, height: 520, alignment: .topLeading)
         .onAppear {
             if !state.apiKey.isEmpty && models.isEmpty {
                 Task { await fetchModels() }
@@ -209,7 +229,7 @@ struct SettingsView: View {
                 Image(systemName: "photo")
                     .font(.caption)
                     .foregroundColor(.accentColor)
-                    .help("支持图片输入")
+                    .help(L10n.settingsSupportsImage.t)
             }
             if let ctx = m.contextLength {
                 Text(formatContext(ctx))
@@ -243,7 +263,7 @@ struct SettingsView: View {
     private func fetchModels() async {
         guard !state.apiKey.isEmpty else {
             models = []
-            loadError = "请先填写 API Key"
+            loadError = L10n.errorMissingAPIKey.t
             return
         }
         loading = true
@@ -269,7 +289,7 @@ struct SettingsView: View {
 
     private func runTest() {
         testing = true
-        testStatus = "测试中…"
+        testStatus = L10n.settingsTesting.t
         Task {
             do {
                 let result = try await LLMClient.shared.convert("ni hao")

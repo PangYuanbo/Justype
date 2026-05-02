@@ -16,15 +16,11 @@ enum AccessibilityHelper {
     static func presentGuidanceIfNeeded() {
         guard !isTrusted else { return }
         let alert = NSAlert()
-        alert.messageText = "需要「辅助功能」权限"
-        alert.informativeText = """
-        JustType 需要「辅助功能 (Accessibility)」权限来监听触发键并捕获按键。
-
-        请到 系统设置 → 隐私与安全性 → 辅助功能,把 JustType 加入并打开开关,然后重新启动 App。
-        """
+        alert.messageText = L10n.axAlertTitle.t
+        alert.informativeText = L10n.axAlertBody.t
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "打开系统设置")
-        alert.addButton(withTitle: "稍后")
+        alert.addButton(withTitle: L10n.axAlertOpen.t)
+        alert.addButton(withTitle: L10n.axAlertLater.t)
         let resp = alert.runModal()
         if resp == .alertFirstButtonReturn {
             if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {

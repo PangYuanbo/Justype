@@ -21,10 +21,10 @@ final class ModelCatalog {
 
         var errorDescription: String? {
             switch self {
-            case .missingAPIKey:        return "请先填写 API Key"
-            case .invalidURL:           return "Base URL 无效"
-            case .http(let c, let m):   return "HTTP \(c): \(m)"
-            case .decoding:             return "解析模型列表失败"
+            case .missingAPIKey:        return L10n.errorMissingAPIKey.t
+            case .invalidURL:           return L10n.errorInvalidURL.t
+            case .http(let c, let m):   return L10n.httpError(c, m)
+            case .decoding:             return L10n.errorParseModelList.t
             }
         }
     }

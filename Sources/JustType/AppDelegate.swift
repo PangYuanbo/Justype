@@ -71,6 +71,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if AppState.shared.enabled {
             eventTap.start()
         }
+
+        // Rebuild the main menu when the user switches language so Edit /
+        // Window / About are also translated immediately.
+        AppState.shared.$language
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.installMainMenu() }
+            .store(in: &sessionCancellables)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -84,20 +91,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
         appMenu.addItem(NSMenuItem(
-            title: "关于 JustType",
+            title: L10n.mainAbout.t,
             action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
             keyEquivalent: ""
         ))
         appMenu.addItem(NSMenuItem.separator())
         let hide = NSMenuItem(
-            title: "隐藏 JustType",
+            title: L10n.mainHide.t,
             action: #selector(NSApplication.hide(_:)),
             keyEquivalent: "h"
         )
         appMenu.addItem(hide)
         appMenu.addItem(NSMenuItem.separator())
         appMenu.addItem(NSMenuItem(
-            title: "退出 JustType",
+            title: L10n.mainQuit.t,
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
         ))
@@ -106,24 +113,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Edit menu — required for Cmd+C/V/X/A/Z to work in text fields.
         let editItem = NSMenuItem()
-        let editMenu = NSMenu(title: "编辑")
-        editMenu.addItem(NSMenuItem(title: "撤销", action: Selector(("undo:")), keyEquivalent: "z"))
-        let redo = NSMenuItem(title: "重做", action: Selector(("redo:")), keyEquivalent: "z")
+        let editMenu = NSMenu(title: L10n.mainEdit.t)
+        editMenu.addItem(NSMenuItem(title: L10n.mainUndo.t, action: Selector(("undo:")), keyEquivalent: "z"))
+        let redo = NSMenuItem(title: L10n.mainRedo.t, action: Selector(("redo:")), keyEquivalent: "z")
         redo.keyEquivalentModifierMask = [.command, .shift]
         editMenu.addItem(redo)
         editMenu.addItem(NSMenuItem.separator())
-        editMenu.addItem(NSMenuItem(title: "剪切", action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
-        editMenu.addItem(NSMenuItem(title: "拷贝", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
-        editMenu.addItem(NSMenuItem(title: "粘贴", action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
-        editMenu.addItem(NSMenuItem(title: "全选", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
+        editMenu.addItem(NSMenuItem(title: L10n.mainCut.t, action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
+        editMenu.addItem(NSMenuItem(title: L10n.mainCopy.t, action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
+        editMenu.addItem(NSMenuItem(title: L10n.mainPaste.t, action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
+        editMenu.addItem(NSMenuItem(title: L10n.mainSelectAll.t, action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
         editItem.submenu = editMenu
         main.addItem(editItem)
 
         // Window menu — provides ⌘W close.
         let windowItem = NSMenuItem()
-        let windowMenu = NSMenu(title: "窗口")
+        let windowMenu = NSMenu(title: L10n.mainWindow.t)
         windowMenu.addItem(NSMenuItem(
-            title: "关闭",
+            title: L10n.mainClose.t,
             action: #selector(NSWindow.performClose(_:)),
             keyEquivalent: "w"
         ))

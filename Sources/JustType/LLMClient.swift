@@ -9,11 +9,11 @@ enum LLMError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .missingAPIKey:        return "API Key 未配置"
-        case .invalidURL:           return "Base URL 无效"
-        case .badResponse(let c, let m): return "HTTP \(c): \(m)"
-        case .decoding:             return "返回解析失败"
-        case .empty:                return "返回为空"
+        case .missingAPIKey:             return L10n.errorMissingAPIKey.t
+        case .invalidURL:                return L10n.errorInvalidURL.t
+        case .badResponse(let c, let m): return L10n.httpError(c, m)
+        case .decoding:                  return L10n.errorDecoding.t
+        case .empty:                     return L10n.errorEmpty.t
         }
     }
 }

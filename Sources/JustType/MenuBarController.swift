@@ -25,6 +25,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.rebuild() }
             .store(in: &cancellables)
+        AppState.shared.$language
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.rebuild() }
+            .store(in: &cancellables)
         HistoryStore.shared.$entries
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.rebuild() }
@@ -44,7 +48,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.delegate = self
 
         // Enable toggle
-        let toggleTitle = AppState.shared.enabled ? "停用 模糊输入" : "启用 模糊输入"
+        let toggleTitle = AppState.shared.enabled ? L10n.menuDisableFuzzy.t : L10n.menuEnableFuzzy.t
         let toggle = NSMenuItem(title: toggleTitle, action: #selector(toggleEnabled), keyEquivalent: "")
         toggle.target = self
         menu.addItem(toggle)
@@ -52,7 +56,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         // Trigger submenu
-        let triggerItem = NSMenuItem(title: "触发键", action: nil, keyEquivalent: "")
+        let triggerItem = NSMenuItem(title: L10n.menuTriggerKey.t, action: nil, keyEquivalent: "")
         let triggerMenu = NSMenu()
         for key in TriggerKey.allCases {
             let mi = NSMenuItem(title: key.displayName, action: #selector(setTrigger(_:)), keyEquivalent: "")
@@ -64,25 +68,38 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         triggerItem.submenu = triggerMenu
         menu.addItem(triggerItem)
 
+        // Language submenu
+        let langItem = NSMenuItem(title: L10n.menuLanguage.t, action: nil, keyEquivalent: "")
+        let langMenu = NSMenu()
+        for lang in Language.allCases {
+            let mi = NSMenuItem(title: lang.displayName, action: #selector(setLanguage(_:)), keyEquivalent: "")
+            mi.target = self
+            mi.representedObject = lang.rawValue
+            mi.state = (AppState.shared.language == lang) ? .on : .off
+            langMenu.addItem(mi)
+        }
+        langItem.submenu = langMenu
+        menu.addItem(langItem)
+
         // Screen context toggle
-        let sc = NSMenuItem(title: "使用屏幕截图作为上下文", action: #selector(toggleScreenContext), keyEquivalent: "")
+        let sc = NSMenuItem(title: L10n.menuUseScreenContext.t, action: #selector(toggleScreenContext), keyEquivalent: "")
         sc.target = self
         sc.state = AppState.shared.useScreenContext ? .on : .off
         menu.addItem(sc)
 
         // LLM settings
-        let settings = NSMenuItem(title: "LLM 设置…", action: #selector(openSettings), keyEquivalent: ",")
+        let settings = NSMenuItem(title: L10n.menuLLMSettings.t, action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
 
         menu.addItem(.separator())
 
         // History
-        let historyItem = NSMenuItem(title: "历史记录", action: nil, keyEquivalent: "")
+        let historyItem = NSMenuItem(title: L10n.menuHistory.t, action: nil, keyEquivalent: "")
         let historyMenu = NSMenu()
         let entries = HistoryStore.shared.entries
         if entries.isEmpty {
-            let empty = NSMenuItem(title: "（暂无）", action: nil, keyEquivalent: "")
+            let empty = NSMenuItem(title: L10n.menuHistoryEmpty.t, action: nil, keyEquivalent: "")
             empty.isEnabled = false
             historyMenu.addItem(empty)
         } else {
@@ -95,7 +112,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
                 historyMenu.addItem(mi)
             }
             historyMenu.addItem(.separator())
-            let clear = NSMenuItem(title: "清空历史", action: #selector(clearHistory), keyEquivalent: "")
+            let clear = NSMenuItem(title: L10n.menuClearHistory.t, action: #selector(clearHistory), keyEquivalent: "")
             clear.target = self
             historyMenu.addItem(clear)
         }
@@ -104,7 +121,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(title: "退出 JustType", action: #selector(quit), keyEquivalent: "q")
+        let quit = NSMenuItem(title: L10n.menuQuit.t, action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
 
@@ -127,6 +144,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
               let key = TriggerKey(rawValue: raw) else { return }
         AppState.shared.trigger = key
         onTriggerChanged?(key)
+    }
+
+    @objc private func setLanguage(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let lang = Language(rawValue: raw) else { return }
+        AppState.shared.language = lang
     }
 
     @objc private func toggleScreenContext() {
