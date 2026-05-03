@@ -58,6 +58,12 @@ enum L10n: String {
     case settingsBehavior
     case settingsUseScreenContext
     case settingsUseScreenContextHint
+    case settingsBetaSection
+    case settingsBetaIMEToggle
+    case settingsBetaIMEHint
+    case settingsBetaIMEOpenSettings
+    case settingsBetaIMEInstalled
+    case settingsBetaIMENotInstalled
 
     // HUD
     case hudWaiting
@@ -147,6 +153,12 @@ enum L10n: String {
         case .settingsBehavior:       return "Behavior"
         case .settingsUseScreenContext: return "Send a screenshot as context"
         case .settingsUseScreenContextHint: return "Attaches a low-res snapshot of your screen to each LLM request, so the model can see the surrounding language / app. Requires Screen Recording permission."
+        case .settingsBetaSection:    return "Beta"
+        case .settingsBetaIMEToggle:  return "Native input method (early beta)"
+        case .settingsBetaIMEHint:    return "Installs JustType as a real macOS input source, so candidates appear under your cursor and ↩ commits directly into the focused text field — no floating box. Type, pause, ↩ to convert. Switch input source from the menu-bar globe / ⌃Space."
+        case .settingsBetaIMEOpenSettings: return "Open Input Sources…"
+        case .settingsBetaIMEInstalled: return "Installed at ~/Library/Input Methods/. Add it from System Settings → Keyboard → Input Sources."
+        case .settingsBetaIMENotInstalled: return "Not installed."
 
         case .hudWaiting:             return "Waiting for input…"
         case .hudConverting:          return "Converting…"
@@ -226,6 +238,12 @@ enum L10n: String {
         case .settingsBehavior:       return "行为"
         case .settingsUseScreenContext: return "把屏幕截图作为上下文"
         case .settingsUseScreenContextHint: return "每次请求时附上一张低清屏幕截图,让模型看到周围的语言和应用。需要屏幕录制权限。"
+        case .settingsBetaSection:    return "Beta 实验功能"
+        case .settingsBetaIMEToggle:  return "原生输入法模式(早期 Beta)"
+        case .settingsBetaIMEHint:    return "把 JustType 注册成真正的 macOS 输入源,候选直接出现在光标下方,↩ 直接录入当前输入框,不再需要浮动框。打字 → 停顿 → ↩ 转换。用菜单栏地球键 / ⌃Space 切换输入源。"
+        case .settingsBetaIMEOpenSettings: return "打开「输入法设置」…"
+        case .settingsBetaIMEInstalled: return "已安装到 ~/Library/Input Methods/。请在 系统设置 → 键盘 → 输入法 中添加 JustType。"
+        case .settingsBetaIMENotInstalled: return "尚未安装。"
 
         case .hudWaiting:             return "等待输入…"
         case .hudConverting:          return "正在转换…"

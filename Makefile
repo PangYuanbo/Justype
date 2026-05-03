@@ -5,6 +5,14 @@ BUILD_DIR      = .build/$(BUILD_CONFIG)
 APP_BUNDLE     = build/$(APP_NAME).app
 INSTALL_DIR    = /Applications
 
+# IME (input method) sub-bundle. Lives inside the main app's Resources
+# at runtime; the main app copies it to ~/Library/Input Methods/ when
+# the user enables the beta feature in Settings.
+IME_NAME       = JustTypeIME
+IME_DISPLAY    = JustType IME
+IME_BUNDLE_ID  = com.justype.app.ime
+IME_APP_BUNDLE = build/$(IME_DISPLAY).app
+
 # Dev build identifiers. The dev variant uses a distinct bundle ID +
 # display name, so it co-exists peacefully with the installed
 # /Applications/JustType.app — separate Accessibility grants, separate
@@ -30,12 +38,44 @@ SIGN_IDENTITY := $(shell ./scripts/get-sign-identity.sh)
 
 .PHONY: all build run install clean bundle sign cert reset-tcc identity \
         zip dmg notarize staple release release-notarized \
-        dev dev-run dev-bundle
+        dev dev-run dev-bundle ime ime-bundle
 
 all: bundle
 
 build:
 	swift build -c $(BUILD_CONFIG)
+
+# Build the IME bundle (`JustType IME.app`) and stash it inside the main
+# app's Resources/ so the released app can copy it to
+# ~/Library/Input Methods/ at runtime when the user opts in.
+ime-bundle: build
+	@rm -rf "$(IME_APP_BUNDLE)"
+	@mkdir -p "$(IME_APP_BUNDLE)/Contents/MacOS"
+	@mkdir -p "$(IME_APP_BUNDLE)/Contents/Resources"
+	@cp $(BUILD_DIR)/$(IME_NAME) "$(IME_APP_BUNDLE)/Contents/MacOS/$(IME_NAME)"
+	@cp Resources/IME-Info.plist "$(IME_APP_BUNDLE)/Contents/Info.plist"
+	@if [ -f Resources/JustType.icns ]; then \
+	    cp Resources/JustType.icns "$(IME_APP_BUNDLE)/Contents/Resources/JustType.icns"; \
+	fi
+	@if echo "$(SIGN_IDENTITY)" | grep -q "Developer ID"; then \
+	    codesign --force --deep \
+	        --sign "$(SIGN_IDENTITY)" \
+	        --identifier $(IME_BUNDLE_ID) \
+	        --options runtime \
+	        --entitlements $(ENTITLEMENTS) \
+	        --timestamp \
+	        "$(IME_APP_BUNDLE)"; \
+	else \
+	    codesign --force --deep \
+	        --sign "$(SIGN_IDENTITY)" \
+	        --identifier $(IME_BUNDLE_ID) \
+	        --timestamp=none \
+	        "$(IME_APP_BUNDLE)"; \
+	fi
+	@echo ""
+	@echo "Built IME bundle: $(IME_APP_BUNDLE)"
+
+ime: ime-bundle
 
 cert:
 	@./scripts/ensure-cert.sh "JustType Local Sign"
@@ -43,7 +83,7 @@ cert:
 identity:
 	@echo "Signing identity: $(SIGN_IDENTITY)"
 
-bundle: build
+bundle: build ime-bundle
 	@rm -rf $(APP_BUNDLE)
 	@mkdir -p $(APP_BUNDLE)/Contents/MacOS
 	@mkdir -p $(APP_BUNDLE)/Contents/Resources
@@ -52,6 +92,9 @@ bundle: build
 	@if [ -f Resources/JustType.icns ]; then \
 	    cp Resources/JustType.icns $(APP_BUNDLE)/Contents/Resources/JustType.icns; \
 	fi
+	@# Embed the IME bundle inside the main app so we can lift it out at
+	@# runtime into ~/Library/Input Methods/ when the user enables the beta.
+	@cp -R "$(IME_APP_BUNDLE)" "$(APP_BUNDLE)/Contents/Resources/$(IME_DISPLAY).app"
 	@$(MAKE) sign
 	@echo ""
 	@echo "Built: $(APP_BUNDLE)"

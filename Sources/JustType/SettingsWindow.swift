@@ -11,7 +11,7 @@ final class SettingsWindowController: NSWindowController {
         let window = NSWindow(contentViewController: hosting)
         window.title = L10n.settingsTitle.t
         window.styleMask = [.titled, .closable]
-        window.setContentSize(NSSize(width: 540, height: 620))
+        window.setContentSize(NSSize(width: 540, height: 760))
         window.isReleasedWhenClosed = false
         window.center()
         self.init(window: window)
@@ -42,6 +42,11 @@ struct SettingsView: View {
 
     /// Debounce auto-fetch on key/baseURL change.
     @State private var refreshTask: Task<Void, Never>? = nil
+
+    /// Tracks whether the IME bundle is currently in
+    /// ~/Library/Input Methods/. Updated when the toggle is flipped.
+    @State private var imeInstalled: Bool = IMEInstaller.isInstalled
+    @State private var imeError: String? = nil
 
     var filteredModels: [ModelCatalog.Model] {
         let s = search.trimmingCharacters(in: .whitespaces).lowercased()
@@ -198,9 +203,47 @@ struct SettingsView: View {
                         .lineLimit(2)
                 }
             }
+
+            Divider()
+
+            // Beta — native input method.
+            VStack(alignment: .leading, spacing: 8) {
+                sectionTitle(L10n.settingsBetaSection.t)
+                Toggle(isOn: Binding(
+                    get: { imeInstalled },
+                    set: { newValue in toggleIME(newValue) }
+                )) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L10n.settingsBetaIMEToggle.t)
+                            .font(.body)
+                        Text(L10n.settingsBetaIMEHint.t)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .toggleStyle(.switch)
+                HStack(spacing: 8) {
+                    Text(imeInstalled ? L10n.settingsBetaIMEInstalled.t : L10n.settingsBetaIMENotInstalled.t)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                    Button(L10n.settingsBetaIMEOpenSettings.t) {
+                        IMEInstaller.openInputSourcesPreferences()
+                    }
+                    .controlSize(.small)
+                }
+                if let err = imeError {
+                    Text(err)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .lineLimit(2)
+                }
+            }
         }
         .padding(20)
-        .frame(width: 540, height: 620, alignment: .topLeading)
+        .frame(width: 540, height: 760, alignment: .topLeading)
         .onAppear {
             if !state.apiKey.isEmpty && models.isEmpty {
                 Task { await fetchModels() }
@@ -312,6 +355,22 @@ struct SettingsView: View {
         } catch {
             models = []
             loadError = error.localizedDescription
+        }
+    }
+
+    private func toggleIME(_ enable: Bool) {
+        imeError = nil
+        do {
+            if enable {
+                try IMEInstaller.install()
+                imeInstalled = true
+                IMEInstaller.openInputSourcesPreferences()
+            } else {
+                try IMEInstaller.uninstall()
+                imeInstalled = false
+            }
+        } catch {
+            imeError = error.localizedDescription
         }
     }
 

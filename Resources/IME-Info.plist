@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>JustType IME</string>
+    <key>CFBundleDisplayName</key>
+    <string>JustType</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.justype.app.ime</string>
+    <key>CFBundleExecutable</key>
+    <string>JustTypeIME</string>
+    <key>CFBundleIconFile</key>
+    <string>JustType</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>LSBackgroundOnly</key>
+    <string>1</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>InputMethodConnectionName</key>
+    <string>JustType_IME_Connection</string>
+    <key>InputMethodServerControllerClass</key>
+    <string>JustTypeInputController</string>
+    <key>tsInputMethodCharacterRepertoireKey</key>
+    <array>
+        <string>Latn</string>
+        <string>Hans</string>
+        <string>Hant</string>
+        <string>Jpan</string>
+        <string>Hang</string>
+    </array>
+    <key>tsInputMethodIconFileKey</key>
+    <string>JustType.icns</string>
+    <key>ComponentInputModeDict</key>
+    <dict>
+        <key>tsInputModeListKey</key>
+        <dict>
+            <key>com.justype.app.ime</key>
+            <dict>
+                <key>TISInputSourceID</key>
+                <string>com.justype.app.ime</string>
+                <key>TISIntendedLanguage</key>
+                <string>en</string>
+                <key>tsInputModeAlternateMenuIconFileKey</key>
+                <string>JustType.icns</string>
+                <key>tsInputModeCharacterRepertoireKey</key>
+                <array>
+                    <string>Latn</string>
+                    <string>Hans</string>
+                    <string>Hant</string>
+                    <string>Jpan</string>
+                    <string>Hang</string>
+                </array>
+                <key>tsInputModeIconFileKey</key>
+                <string>JustType.icns</string>
+                <key>tsInputModeIsVisibleKey</key>
+                <true/>
+                <key>tsInputModeMenuKey</key>
+                <string>JustType</string>
+                <key>tsInputModePaletteIconFileKey</key>
+                <string>JustType.icns</string>
+                <key>tsInputModePrimaryInScriptKey</key>
+                <true/>
+            </dict>
+        </dict>
+    </dict>
+</dict>
+</plist>

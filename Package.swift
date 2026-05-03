@@ -5,7 +5,8 @@ let package = Package(
     name: "JustType",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "JustType", targets: ["JustType"])
+        .executable(name: "JustType", targets: ["JustType"]),
+        .executable(name: "JustTypeIME", targets: ["JustTypeIME"]),
     ],
     targets: [
         .executableTarget(
@@ -18,6 +19,14 @@ let package = Package(
                 .linkedFramework("Combine"),
                 .linkedFramework("CoreGraphics"),
             ]
-        )
+        ),
+        .executableTarget(
+            name: "JustTypeIME",
+            path: "Sources/JustTypeIME",
+            linkerSettings: [
+                .linkedFramework("AppKit"),
+                .linkedFramework("InputMethodKit"),
+            ]
+        ),
     ]
 )
