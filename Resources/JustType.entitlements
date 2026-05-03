@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Send key/mouse events to other applications via CGEventPost. -->
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+
+    <!-- Allow loading of unsigned dylibs (none expected, but keeps Swift
+         runtime loading happy under hardened runtime). -->
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <false/>
+
+    <!-- DYLD environment vars are not needed; explicitly disable for
+         hardened runtime. -->
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <false/>
+</dict>
+</plist>

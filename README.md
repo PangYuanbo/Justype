@@ -100,32 +100,8 @@ so the final paste lands exactly where you were typing before.
 2. Double-click the zip to extract `JustType.app`.
 3. Drag `JustType.app` into `/Applications`.
 
-### First launch — Gatekeeper workaround
-
-JustType ships signed with an Apple Development certificate but is **not
-notarized** (notarization needs a paid $99/yr Apple Developer Program
-membership). On first launch macOS will block it with one of these:
-
-> "JustType" can't be opened because Apple cannot check it for malicious
-> software.
-
-> Apple could not verify "JustType" is free of malware…
-
-This is a one-time workaround:
-
-1. Open `/Applications` in Finder.
-2. **Right-click** `JustType.app` → **Open**.
-3. In the dialog that appears, click **Open** again.
-
-Or, if you've already double-clicked it once and got the warning:
-
-1. Open **System Settings → Privacy & Security**.
-2. Scroll down — you'll see "JustType was blocked from use because it
-   is not from an identified developer." Click **Open Anyway** beside it.
-3. Confirm in the next dialog.
-
-After this one-time approval, JustType launches normally — no more
-warnings.
+JustType is signed with **Developer ID** and **notarized by Apple**, so
+it opens on first double-click — no Gatekeeper workarounds.
 
 ---
 
@@ -489,7 +465,7 @@ rm -rf ~/Library/Application\ Support/JustType
 
 ## Roadmap
 
-- [ ] Notarization so first launch doesn't show a Gatekeeper dialog.
+- [x] Notarization so first launch doesn't show a Gatekeeper dialog.
 - [ ] Auto-update via Sparkle.
 - [ ] More languages in the UI (PRs welcome — see `Sources/JustType/L10n.swift`).
 - [ ] Custom system prompt per session / per app.

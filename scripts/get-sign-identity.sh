@@ -11,7 +11,19 @@ set -euo pipefail
 
 LOCAL_ID="JustType Local Sign"
 
-# 1. Prefer an Apple-issued cert (most stable).
+# 1. Prefer Developer ID Application — that's the only identity that lets
+# the app be notarized for distribution outside the Mac App Store.
+DEVID=$(security find-identity -v -p codesigning 2>/dev/null \
+    | grep -E "Developer ID Application" \
+    | head -1 \
+    | sed -E 's/.*"([^"]+)".*/\1/' || true)
+if [ -n "$DEVID" ]; then
+    echo "→ Using Developer ID cert: $DEVID" >&2
+    echo "$DEVID"
+    exit 0
+fi
+
+# 2. Fallback: Apple Development cert (works only on the dev's own machine).
 APPLE_ID=$(security find-identity -v -p codesigning 2>/dev/null \
     | grep -E "Apple (Development|Distribution)" \
     | head -1 \
