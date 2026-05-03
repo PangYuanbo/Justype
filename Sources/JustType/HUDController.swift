@@ -6,12 +6,13 @@ import Combine
 
 /// One snapshot of the magic-input HUD's display state.
 struct HUDSnapshot: Equatable {
-    var committed: String = ""
-    var raw: String = ""
-    /// Caret position inside `raw`, in characters from the start. Used so the
-    /// blinking caret renders between letters when the user moves with arrow
-    /// keys.
-    var rawCursor: Int = 0
+    /// The full editable buffer (committed prefix + trailing raw run).
+    var text: String = ""
+    /// Caret position inside `text`, in characters from the start.
+    var cursor: Int = 0
+    /// Trailing run of un-converted ASCII characters, used to style the
+    /// raw portion differently and drive the candidate row.
+    var rawRange: NSRange = NSRange(location: 0, length: 0)
     var candidate: String? = nil
     var converting: Bool = false
     var error: String? = nil
@@ -37,9 +38,10 @@ struct HUDSnapshot: Equatable {
 final class HUDViewModel: ObservableObject {
     @Published var snapshot: HUDSnapshot = HUDSnapshot()
     @Published var visible: Bool = false
-    /// Invoked when the user clicks anywhere on the HUD card. Used to
-    /// trigger select-all (mouse equivalent of ⌘A).
-    var onCardTap: (() -> Void)?
+    /// Invoked when the user clicks inside the raw text region — the
+    /// payload is the character index within `snapshot.raw` where the
+    /// caret should land.
+    var onSetRawCursor: ((Int) -> Void)?
 }
 
 // MARK: - Controller
@@ -95,9 +97,10 @@ final class HUDController {
         viewModel.snapshot = snapshot
     }
 
-    /// Set a closure invoked when the user clicks anywhere on the HUD card.
-    func setTapHandler(_ handler: @escaping () -> Void) {
-        viewModel.onCardTap = handler
+    /// Set a closure invoked when the user clicks inside the raw text —
+    /// the int payload is the character index where the caret should go.
+    func setRawCursorHandler(_ handler: @escaping (Int) -> Void) {
+        viewModel.onSetRawCursor = handler
     }
 
     func showResult(_ text: String) {
@@ -214,10 +217,6 @@ struct HUDView: View {
                 }
             }
         }
-        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .onTapGesture {
-            viewModel.onCardTap?()
-        }
         .padding(.horizontal, 22)
         .padding(.vertical, 18)
         .background(background)
@@ -249,16 +248,12 @@ struct HUDView: View {
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(accent)
                     .padding(.trailing, 6)
-                if viewModel.snapshot.committed.isEmpty && viewModel.snapshot.raw.isEmpty {
+                if viewModel.snapshot.text.isEmpty {
                     Text(L10n.hudWaiting.t)
                         .font(.system(size: 16, weight: .medium, design: .rounded))
                         .foregroundColor(.black.opacity(0.42))
                 } else if viewModel.snapshot.allSelected {
-                    // Render committed + raw inside a single highlighted
-                    // capsule. The next typed character (or Backspace)
-                    // replaces / clears everything.
-                    let combined = viewModel.snapshot.committed + viewModel.snapshot.raw
-                    Text(combined)
+                    Text(viewModel.snapshot.text)
                         .font(.system(size: 18, weight: .semibold, design: .rounded))
                         .foregroundColor(.black.opacity(0.92))
                         .padding(.horizontal, 6)
@@ -272,34 +267,44 @@ struct HUDView: View {
                                 .strokeBorder(accent.opacity(0.55), lineWidth: 1)
                         )
                 } else {
-                    if !viewModel.snapshot.committed.isEmpty {
-                        Text(viewModel.snapshot.committed)
-                            .font(.system(size: 18, weight: .semibold, design: .rounded))
-                            .foregroundColor(.black.opacity(0.92))
-                    }
-                    let raw = viewModel.snapshot.raw
-                    let cursor = max(0, min(viewModel.snapshot.rawCursor, raw.count))
-                    let leftIdx = raw.index(raw.startIndex, offsetBy: cursor)
-                    let leftPart = String(raw[..<leftIdx])
-                    let rightPart = String(raw[leftIdx...])
-                    if !leftPart.isEmpty {
-                        Text(leftPart)
-                            .font(.system(size: 16, weight: .medium, design: .monospaced))
-                            .foregroundColor(.black.opacity(0.55))
-                            .underline(true, color: accent.opacity(0.65))
-                    }
-                    BlinkingCaret(color: accent)
-                        .padding(.horizontal, 1)
-                    if !rightPart.isEmpty {
-                        Text(rightPart)
-                            .font(.system(size: 16, weight: .medium, design: .monospaced))
-                            .foregroundColor(.black.opacity(0.55))
-                            .underline(true, color: accent.opacity(0.65))
-                    }
+                    editableTextRow
                 }
                 Spacer(minLength: 0)
             }
         }
+    }
+
+    /// One unified row that:
+    ///   - renders the buffer with proportional styling for the
+    ///     converted prefix and monospaced+underlined styling for the
+    ///     trailing raw run,
+    ///   - draws a blinking caret at the cursor's x-offset (computed
+    ///     via CTLine for accuracy across mixed scripts),
+    ///   - accepts mouse clicks anywhere on the line and reports the
+    ///     hit character index back to the controller.
+    private var editableTextRow: some View {
+        let snap = viewModel.snapshot
+        let attrString = HUDTextLayout.attributedString(
+            text: snap.text,
+            rawRange: snap.rawRange,
+            rawUnderline: NSColor(accent.opacity(0.65))
+        )
+        let layout = HUDTextLayout(attributed: attrString)
+        let safeCursor = max(0, min(snap.cursor, attrString.length))
+        let caretX = layout.xOffset(forCharIndex: safeCursor)
+        let totalWidth = ceil(layout.size.width) + 4
+
+        return ZStack(alignment: .topLeading) {
+            EditableTextLineView(layout: layout) { idx in
+                viewModel.onSetRawCursor?(idx)
+            }
+            .frame(width: max(totalWidth, 6), height: 24, alignment: .topLeading)
+
+            BlinkingCaret(color: accent)
+                .offset(x: caretX)
+        }
+        .frame(minHeight: 24, idealHeight: 24, maxHeight: 24, alignment: .topLeading)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var divider: some View {
@@ -336,7 +341,7 @@ struct HUDView: View {
                 Spacer(minLength: 8)
                 hintBadge(text: L10n.hudAcceptHint.t, color: accent)
             }
-        } else if viewModel.snapshot.raw.isEmpty && !viewModel.snapshot.committed.isEmpty {
+        } else if viewModel.snapshot.rawRange.length == 0 && !viewModel.snapshot.text.isEmpty {
             // Everything is converted — ↩ now submits.
             HStack(spacing: 10) {
                 Image(systemName: "checkmark.seal")
@@ -348,7 +353,7 @@ struct HUDView: View {
                 Spacer(minLength: 8)
                 hintBadge(text: L10n.hudSubmitHint.t, color: accent)
             }
-        } else if viewModel.snapshot.raw.isEmpty {
+        } else if viewModel.snapshot.rawRange.length == 0 {
             HStack(spacing: 10) {
                 Text(L10n.hudHelp.t)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
@@ -489,5 +494,119 @@ private struct ConvertingDots: View {
             }
         }
         .frame(width: 26, height: 16)
+    }
+}
+
+// MARK: - HUD text layout
+
+/// Computes character offsets and hit-tests for the magic box's
+/// editable line. Built around a single `NSAttributedString` + `CTLine`
+/// so it correctly handles mixed scripts (Chinese committed prefix +
+/// monospaced raw suffix) without us approximating widths.
+struct HUDTextLayout {
+    let attributed: NSAttributedString
+    let line: CTLine
+    let size: CGSize
+
+    init(attributed: NSAttributedString) {
+        self.attributed = attributed
+        let line = CTLineCreateWithAttributedString(attributed)
+        self.line = line
+        let typo = CTLineGetTypographicBounds(line, nil, nil, nil)
+        let bounds = CTLineGetBoundsWithOptions(line, CTLineBoundsOptions.useGlyphPathBounds)
+        self.size = CGSize(width: max(CGFloat(typo), bounds.width), height: bounds.height)
+    }
+
+    /// X offset (in points, from the start of the line) to draw a caret
+    /// for `index` characters into the buffer.
+    func xOffset(forCharIndex index: Int) -> CGFloat {
+        let clamped = max(0, min(index, attributed.length))
+        return CTLineGetOffsetForStringIndex(line, clamped, nil)
+    }
+
+    /// Inverse of `xOffset(forCharIndex:)`. Used to convert a click
+    /// inside the line into a buffer character index.
+    func charIndex(forX x: CGFloat) -> Int {
+        let raw = CTLineGetStringIndexForPosition(line, CGPoint(x: x, y: 0))
+        return max(0, min(Int(raw), attributed.length))
+    }
+
+    /// Build the styled `NSAttributedString` shown in the magic box —
+    /// the converted prefix in proportional semibold, the trailing raw
+    /// run in monospaced + underlined.
+    static func attributedString(text: String, rawRange: NSRange, rawUnderline: NSColor) -> NSAttributedString {
+        let attr = NSMutableAttributedString(string: text)
+        let full = NSRange(location: 0, length: (text as NSString).length)
+        attr.addAttributes([
+            .font: NSFont.systemFont(ofSize: 18, weight: .semibold),
+            .foregroundColor: NSColor(white: 0, alpha: 0.92)
+        ], range: full)
+        if rawRange.length > 0,
+           rawRange.location >= 0,
+           NSMaxRange(rawRange) <= attr.length {
+            attr.addAttributes([
+                .font: NSFont.monospacedSystemFont(ofSize: 16, weight: .medium),
+                .foregroundColor: NSColor(white: 0, alpha: 0.55),
+                .underlineStyle: NSUnderlineStyle.single.rawValue,
+                .underlineColor: rawUnderline
+            ], range: rawRange)
+        }
+        return attr
+    }
+}
+
+// MARK: - Editable line view
+
+/// Renders a single attributed line and forwards mouse-down clicks +
+/// the I-beam cursor. Backed by an `NSView` (not SwiftUI) because the
+/// magic box lives in a non-activating `NSPanel`; SwiftUI gestures and
+/// the `.cursor()` modifier are unreliable there, but `acceptsFirstMouse`
+/// + `addCursorRect` always work.
+struct EditableTextLineView: NSViewRepresentable {
+    let layout: HUDTextLayout
+    let onClick: (Int) -> Void
+
+    func makeNSView(context: Context) -> EditableTextLineNSView {
+        let v = EditableTextLineNSView()
+        v.layout = layout
+        v.onClick = onClick
+        return v
+    }
+    func updateNSView(_ v: EditableTextLineNSView, context: Context) {
+        v.layout = layout
+        v.onClick = onClick
+        v.needsDisplay = true
+        v.window?.invalidateCursorRects(for: v)
+    }
+}
+
+final class EditableTextLineNSView: NSView {
+    var layout: HUDTextLayout? { didSet { needsDisplay = true } }
+    var onClick: ((Int) -> Void)?
+
+    override var acceptsFirstResponder: Bool { true }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override var isFlipped: Bool { false }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        addCursorRect(bounds, cursor: .iBeam)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard let layout = layout else { return }
+        let local = convert(event.locationInWindow, from: nil)
+        let idx = layout.charIndex(forX: max(0, local.x))
+        onClick?(idx)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let layout = layout, let ctx = NSGraphicsContext.current?.cgContext else { return }
+        // CoreText draws with origin at the baseline; place it about 4pt
+        // above the bottom of the view so the line is roughly centered
+        // within our 24pt-tall row.
+        let baselineY: CGFloat = 5
+        ctx.textPosition = CGPoint(x: 0, y: baselineY)
+        CTLineDraw(layout.line, ctx)
     }
 }

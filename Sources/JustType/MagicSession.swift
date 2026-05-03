@@ -1,56 +1,69 @@
 import Foundation
 import AppKit
 
-/// State for an active "magic input" session — the user has tapped the
-/// trigger key and is now typing into a floating box. On pause we ask the
-/// LLM to convert the trailing raw segment into a candidate; ↩ commits it,
-/// another tap of the trigger finalizes everything and injects.
+/// State for an active "magic input" session. The user types ASCII into
+/// a single editable buffer; one *raw window* tracks whatever they're
+/// currently typing — it auto-converts on pause and is replaced in-place
+/// when a candidate is accepted. Clicking or arrow-keying outside the
+/// raw window freezes it (the typed text stays in the buffer as-is, no
+/// longer auto-convertible). Typing again — anywhere — opens a new raw
+/// window at that location, so editing already-converted text naturally
+/// triggers a fresh conversion of just that edit.
 final class MagicSession: ObservableObject {
-    /// Text the user has already accepted (via ↩) — locked in.
-    @Published var committed: String = ""
-    /// The current raw keyboard segment being typed (not yet converted).
-    @Published var raw: String = ""
-    /// Insertion point inside `raw`, in characters from the start. Lets the
-    /// user move the caret with arrow keys and edit mid-segment.
-    @Published var rawCursor: Int = 0
-    /// LLM-converted candidate of `raw`, shown below as IME-style preview.
+    /// The full buffer shown in the magic box.
+    @Published var text: String = ""
+    /// Caret position, in characters from the start of `text`.
+    @Published var cursor: Int = 0
+    /// The currently-active raw window — what the user is typing right
+    /// now. `nil` when there is no live typing, in which case no
+    /// auto-conversion fires and ↩ submits.
+    @Published var rawWindow: NSRange? = nil
     @Published var candidate: String? = nil
-    /// True while an LLM call for the current raw is in flight.
     @Published var converting: Bool = false
-    /// Most recent error message (transient).
     @Published var errorMessage: String? = nil
-    /// True when the user has explicitly selected the entire box
-    /// (click on the HUD or ⌘A). The next typed character replaces
-    /// everything, or Backspace clears it.
     @Published var allSelected: Bool = false
 
-    /// Optional screenshot taken at session start, reused for every LLM call.
-    private var contextImage: Data? = nil
-
-    /// Per-session log of every (raw → committed) pair. Used by the
-    /// post-paste edit watcher to attribute corrections.
+    /// Per-session log of accepted (raw → committed) pairs, fed to
+    /// EditWatcher after submit.
     private(set) var rawHistory: [String] = []
+    var combinedRaw: String { rawHistory.joined(separator: " ") }
 
-    /// All raw segments concatenated with single spaces — useful as a single
-    /// "what the user originally typed" payload for correction attribution.
-    var combinedRaw: String {
-        rawHistory.joined(separator: " ")
-    }
-
+    private var contextImage: Data? = nil
     private var debounceTask: DispatchWorkItem?
     private var inFlightForRaw: String? = nil
-
-    /// Debounce delay before auto-converting the current raw segment.
     private let debounceInterval: TimeInterval = 0.5
 
-    /// Reset to a fresh session.
+    var isEmpty: Bool { text.isEmpty }
+    /// HUD-friendly view of the raw window — empty range when nil.
+    var rawRange: NSRange { rawWindow ?? NSRange(location: 0, length: 0) }
+
+    var rawText: String {
+        guard let r = rawWindow, r.length > 0,
+              NSMaxRange(r) <= (text as NSString).length else { return "" }
+        return (text as NSString).substring(with: r)
+    }
+
+    private var prefixText: String {
+        guard let r = rawWindow else { return text }
+        return (text as NSString).substring(to: r.location)
+    }
+
+    private var suffixText: String {
+        guard let r = rawWindow else { return "" }
+        let ns = text as NSString
+        guard NSMaxRange(r) <= ns.length else { return "" }
+        return ns.substring(from: NSMaxRange(r))
+    }
+
+    // MARK: - Lifecycle
+
     func startNew() {
         debounceTask?.cancel()
         debounceTask = nil
         inFlightForRaw = nil
-        committed = ""
-        raw = ""
-        rawCursor = 0
+        text = ""
+        cursor = 0
+        rawWindow = nil
         candidate = nil
         converting = false
         errorMessage = nil
@@ -61,166 +74,158 @@ final class MagicSession: ObservableObject {
             : nil
     }
 
-    var isEmpty: Bool { committed.isEmpty && raw.isEmpty }
+    func cancel() {
+        debounceTask?.cancel()
+        debounceTask = nil
+        inFlightForRaw = nil
+        text = ""
+        cursor = 0
+        rawWindow = nil
+        candidate = nil
+        converting = false
+        errorMessage = nil
+        allSelected = false
+    }
 
-    // MARK: - Edit operations
+    // MARK: - Acceptable raw chars
+
+    private static let allowedPunct: Set<Character> = [",", ".", "?", "!", "'", "-", " "]
+
+    static func isAcceptableRawChar(_ c: Character) -> Bool {
+        if c.isLetter && c.isASCII { return true }
+        if c.isNumber && c.isASCII { return true }
+        if allowedPunct.contains(c) { return true }
+        return false
+    }
+
+    // MARK: - Edits
 
     func append(_ s: String) {
-        // If everything is currently "selected", treat the next character as
-        // a replacement: blow away committed + raw, then insert.
         if allSelected {
-            committed = ""
-            raw = ""
-            rawCursor = 0
+            text = ""
+            cursor = 0
+            rawWindow = nil
             allSelected = false
+            candidate = nil
         }
-        // Insert at the caret rather than always appending, so the user can
-        // edit mid-segment after moving with arrow keys.
-        let insertIdx = clampedCursorIndex()
-        raw.insert(contentsOf: s, at: insertIdx)
-        rawCursor = min(rawCursor + s.count, raw.count)
+        let ns = text as NSString
+        let safeCursor = max(0, min(cursor, ns.length))
+        text = ns.replacingCharacters(in: NSRange(location: safeCursor, length: 0), with: s)
+        let inserted = (s as NSString).length
+
+        if let r = rawWindow, safeCursor >= r.location, safeCursor <= NSMaxRange(r) {
+            // Cursor sits inside or at the boundary of the active raw
+            // window — extend it.
+            rawWindow = NSRange(location: r.location, length: r.length + inserted)
+        } else {
+            // Anywhere else (incl. middle of converted text or fresh start
+            // after a click): begin a brand-new raw window where the
+            // characters were just inserted.
+            rawWindow = NSRange(location: safeCursor, length: inserted)
+        }
+        cursor = safeCursor + inserted
         candidate = nil
         errorMessage = nil
         scheduleConvert()
     }
 
-    /// Backspace: delete the character to the left of the caret. When
-    /// `allSelected` is on, clears the entire box instead.
     func backspace() {
         if allSelected {
-            committed = ""
-            raw = ""
-            rawCursor = 0
-            candidate = nil
-            errorMessage = nil
+            text = ""
+            cursor = 0
+            rawWindow = nil
             allSelected = false
+            candidate = nil
             debounceTask?.cancel()
             debounceTask = nil
             return
         }
-        if rawCursor > 0 && !raw.isEmpty {
-            let target = raw.index(raw.startIndex, offsetBy: rawCursor - 1)
-            raw.remove(at: target)
-            rawCursor -= 1
-            candidate = nil
-            errorMessage = nil
-            if raw.isEmpty {
-                debounceTask?.cancel()
-                debounceTask = nil
-            } else {
-                scheduleConvert()
+        guard cursor > 0 else { return }
+        let ns = text as NSString
+        let removeAt = cursor - 1
+        guard removeAt < ns.length else { return }
+        text = ns.replacingCharacters(in: NSRange(location: removeAt, length: 1), with: "")
+
+        if var r = rawWindow {
+            if removeAt >= r.location && removeAt < NSMaxRange(r) {
+                // Deleted a char inside the raw window.
+                r.length -= 1
+                rawWindow = r.length > 0 ? r : nil
+            } else if removeAt < r.location {
+                // Deleted a char in the converted prefix — shift window
+                // back to track its new position.
+                r.location -= 1
+                rawWindow = r
             }
-        } else if rawCursor == 0 && raw.isEmpty && !committed.isEmpty {
-            // Pull last character off committed text so the user can edit it.
-            committed.removeLast()
+        }
+        cursor = removeAt
+        candidate = nil
+        errorMessage = nil
+        if rawWindow != nil {
+            scheduleConvert()
+        } else {
+            debounceTask?.cancel()
+            debounceTask = nil
         }
     }
 
-    /// Select everything currently displayed in the box. Triggered by ⌘A or
-    /// a click on the HUD.
-    func selectAll() {
-        if committed.isEmpty && raw.isEmpty {
-            allSelected = false
-            return
+    func forwardDelete() {
+        if allSelected { backspace(); return }
+        let ns = text as NSString
+        guard cursor < ns.length else { return }
+        text = ns.replacingCharacters(in: NSRange(location: cursor, length: 1), with: "")
+
+        if var r = rawWindow {
+            if cursor >= r.location && cursor < NSMaxRange(r) {
+                r.length -= 1
+                rawWindow = r.length > 0 ? r : nil
+            } else if cursor < r.location {
+                r.location -= 1
+                rawWindow = r
+            }
         }
+        candidate = nil
+        errorMessage = nil
+        if rawWindow != nil {
+            scheduleConvert()
+        } else {
+            debounceTask?.cancel()
+            debounceTask = nil
+        }
+    }
+
+    func moveCursorLeft()  { setCursor(cursor - 1) }
+    func moveCursorRight() { setCursor(cursor + 1) }
+    func moveCursorHome()  { setCursor(0) }
+    func moveCursorEnd()   { setCursor((text as NSString).length) }
+
+    /// Move the caret. If the new position falls outside the active raw
+    /// window, freeze that window (the typed text stays in `text` but
+    /// stops being treated as un-converted).
+    func setCursor(_ idx: Int) {
+        deselect()
+        let clamped = max(0, min(idx, (text as NSString).length))
+        cursor = clamped
+        if let r = rawWindow {
+            if clamped < r.location || clamped > NSMaxRange(r) {
+                rawWindow = nil
+                candidate = nil
+                debounceTask?.cancel()
+                debounceTask = nil
+            }
+        }
+    }
+
+    func selectAll() {
+        if text.isEmpty { allSelected = false; return }
         allSelected = true
     }
 
-    /// Drop the "all selected" highlight without modifying the buffer. Used
-    /// when a non-mutating action (arrow key, Esc) happens after select-all.
     func deselect() {
         if allSelected { allSelected = false }
     }
 
-    /// Forward delete (Fn+Delete on Mac): delete the character to the right
-    /// of the caret. When `allSelected` is on, behaves like Backspace and
-    /// clears everything.
-    func forwardDelete() {
-        if allSelected {
-            backspace()
-            return
-        }
-        guard rawCursor < raw.count else { return }
-        let target = raw.index(raw.startIndex, offsetBy: rawCursor)
-        raw.remove(at: target)
-        candidate = nil
-        errorMessage = nil
-        if raw.isEmpty {
-            debounceTask?.cancel()
-            debounceTask = nil
-        } else {
-            scheduleConvert()
-        }
-    }
-
-    func moveCursorLeft() {
-        deselect()
-        if rawCursor > 0 { rawCursor -= 1 }
-    }
-
-    func moveCursorRight() {
-        deselect()
-        if rawCursor < raw.count { rawCursor += 1 }
-    }
-
-    func moveCursorHome() {
-        deselect()
-        rawCursor = 0
-    }
-
-    func moveCursorEnd() {
-        deselect()
-        rawCursor = raw.count
-    }
-
-    private func clampedCursorIndex() -> String.Index {
-        let safe = max(0, min(rawCursor, raw.count))
-        return raw.index(raw.startIndex, offsetBy: safe)
-    }
-
-    /// Enter pressed: commit the current candidate. If no candidate exists yet
-    /// (raw too fresh), force-convert first then commit.
-    func commitCandidateOrConvertNow() async {
-        if let c = candidate {
-            rawHistory.append(raw)
-            committed += c
-            raw = ""
-            rawCursor = 0
-            candidate = nil
-            debounceTask?.cancel()
-            debounceTask = nil
-            return
-        }
-        guard !raw.isEmpty else { return }
-        await convertNowAndCommit()
-    }
-
-    /// Trigger key pressed again: finalize. Returns the full text to inject.
-    func finalize() async -> String {
-        debounceTask?.cancel()
-        debounceTask = nil
-        if let c = candidate {
-            committed += c
-            raw = ""
-            candidate = nil
-        } else if !raw.isEmpty {
-            await convertNowAndCommit()
-        }
-        return committed
-    }
-
-    func cancel() {
-        debounceTask?.cancel()
-        debounceTask = nil
-        inFlightForRaw = nil
-        committed = ""
-        raw = ""
-        candidate = nil
-        converting = false
-        errorMessage = nil
-    }
-
-    // MARK: - LLM
+    // MARK: - Convert
 
     private func scheduleConvert() {
         debounceTask?.cancel()
@@ -232,7 +237,7 @@ final class MagicSession: ObservableObject {
     }
 
     private func convertCurrent() async {
-        let snapshot = raw
+        let snapshot = rawText
         guard !snapshot.isEmpty else { return }
         guard inFlightForRaw != snapshot else { return }
         inFlightForRaw = snapshot
@@ -245,22 +250,48 @@ final class MagicSession: ObservableObject {
             let result = try await LLMClient.shared.convert(
                 snapshot,
                 imageData: contextImage,
-                prefixContext: committed
+                prefixContext: prefixText
             )
-            // Only apply if the raw hasn't changed underneath us.
-            if raw == snapshot {
+            if rawText == snapshot {
                 candidate = result
                 errorMessage = nil
             }
         } catch {
-            if raw == snapshot {
+            if rawText == snapshot {
                 errorMessage = error.localizedDescription
             }
         }
     }
 
-    private func convertNowAndCommit() async {
-        let snapshot = raw
+    enum ReturnIntent { case accepted, converting, submit }
+
+    func handleReturn() -> ReturnIntent {
+        if let c = candidate {
+            applyCandidate(c)
+            return .accepted
+        }
+        if !rawText.isEmpty {
+            Task { [weak self] in await self?.convertNowAndApply() }
+            return .converting
+        }
+        return .submit
+    }
+
+    private func applyCandidate(_ c: String) {
+        guard let r = rawWindow else { return }
+        let raw = (text as NSString).substring(with: r)
+        let ns = text as NSString
+        text = ns.replacingCharacters(in: r, with: c)
+        rawHistory.append(raw)
+        cursor = r.location + (c as NSString).length
+        rawWindow = nil
+        candidate = nil
+        debounceTask?.cancel()
+        debounceTask = nil
+    }
+
+    private func convertNowAndApply() async {
+        let snapshot = rawText
         guard !snapshot.isEmpty else { return }
         debounceTask?.cancel()
         debounceTask = nil
@@ -270,18 +301,25 @@ final class MagicSession: ObservableObject {
             let result = try await LLMClient.shared.convert(
                 snapshot,
                 imageData: contextImage,
-                prefixContext: committed
+                prefixContext: prefixText
             )
-            if raw == snapshot {
-                rawHistory.append(snapshot)
-                committed += result
-                raw = ""
-                rawCursor = 0
-                candidate = nil
+            if rawText == snapshot {
+                applyCandidate(result)
                 errorMessage = nil
             }
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    func finalize() async -> String {
+        debounceTask?.cancel()
+        debounceTask = nil
+        if let c = candidate {
+            applyCandidate(c)
+        } else if !rawText.isEmpty {
+            await convertNowAndApply()
+        }
+        return text
     }
 }

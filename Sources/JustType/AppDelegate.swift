@@ -35,9 +35,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // so dispatch a tick later to read the new state.
                 DispatchQueue.main.async {
                     var snap = HUDSnapshot()
-                    snap.committed = self.session.committed
-                    snap.raw = self.session.raw
-                    snap.rawCursor = self.session.rawCursor
+                    snap.text = self.session.text
+                    snap.cursor = self.session.cursor
+                    snap.rawRange = self.session.rawRange
                     snap.candidate = self.session.candidate
                     snap.converting = self.session.converting
                     snap.error = self.session.errorMessage
@@ -47,10 +47,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &sessionCancellables)
 
-        // Mouse-click on the HUD = ⌘A inside the magic box.
-        hud.setTapHandler { [weak self] in
+        // Mouse-click inside the input → move the caret there.
+        hud.setRawCursorHandler { [weak self] index in
             guard let self = self, self.sessionActive else { return }
-            self.session.selectAll()
+            self.session.setCursor(index)
         }
 
         menuBar.onToggleEnabled = { [weak self] enabled in
@@ -245,18 +245,11 @@ extension AppDelegate: EventTapDelegate {
     func eventTapDidPressEnter() {
         DispatchQueue.main.async { [weak self] in
             guard let self = self, self.sessionActive else { return }
-            // If there's nothing left to convert (raw is empty), treat ↩ as
-            // "submit" — inject committed text into the focused app, same as
-            // pressing the trigger key a second time. Otherwise it commits
-            // the current candidate (or force-converts pending raw).
-            if self.session.raw.isEmpty {
-                if !self.session.committed.isEmpty {
-                    self.finalizeSession()
-                }
-            } else {
-                Task { [weak self] in
-                    await self?.session.commitCandidateOrConvertNow()
-                }
+            switch self.session.handleReturn() {
+            case .accepted, .converting:
+                break
+            case .submit:
+                self.finalizeSession()
             }
         }
     }
