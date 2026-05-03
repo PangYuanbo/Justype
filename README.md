@@ -1,4 +1,7 @@
-# JustType
+<div align="center">
+  <img src="docs/icon.png" alt="JustType" width="160" height="160" />
+  <h1>JustType</h1>
+</div>
 
 > LLM-powered fuzzy keyboard input for macOS. No IME, no autocorrect — just
 > type the way it sounds and let the model figure out what you meant.
