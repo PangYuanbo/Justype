@@ -9,7 +9,7 @@ INSTALL_DIR    = /Applications
 # display name, so it co-exists peacefully with the installed
 # /Applications/JustType.app — separate Accessibility grants, separate
 # settings, separate menu-bar entry.
-DEV_APP_NAME   = JustType Dev
+DEV_APP_NAME   = Dev
 DEV_BUNDLE_ID  = com.justype.app.dev
 DEV_APP_BUNDLE = build/$(DEV_APP_NAME).app
 
@@ -99,10 +99,10 @@ dev-bundle: build
 	mkdir -p "$(DEV_APP_BUNDLE)/Contents/MacOS"; \
 	mkdir -p "$(DEV_APP_BUNDLE)/Contents/Resources"; \
 	cp $(BUILD_DIR)/$(APP_NAME) "$(DEV_APP_BUNDLE)/Contents/MacOS/$(APP_NAME)"; \
-	sed \
-	    -e 's|<string>$(BUNDLE_ID)</string>|<string>$(DEV_BUNDLE_ID)</string>|' \
-	    -e 's|<string>JustType</string>|<string>$(DEV_APP_NAME)</string>|' \
-	    Resources/Info.plist > "$(DEV_APP_BUNDLE)/Contents/Info.plist"; \
+	cp Resources/Info.plist "$(DEV_APP_BUNDLE)/Contents/Info.plist"; \
+	/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $(DEV_BUNDLE_ID)" "$(DEV_APP_BUNDLE)/Contents/Info.plist"; \
+	/usr/libexec/PlistBuddy -c "Set :CFBundleName $(DEV_APP_NAME)" "$(DEV_APP_BUNDLE)/Contents/Info.plist"; \
+	/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $(DEV_APP_NAME)" "$(DEV_APP_BUNDLE)/Contents/Info.plist"; \
 	if [ -f Resources/JustType.icns ]; then \
 	    cp Resources/JustType.icns "$(DEV_APP_BUNDLE)/Contents/Resources/JustType.icns"; \
 	fi; \
@@ -114,6 +114,7 @@ dev-bundle: build
 	@echo ""
 	@echo "Built dev bundle: $(DEV_APP_BUNDLE)"
 	@echo "Bundle ID:        $(DEV_BUNDLE_ID)"
+	@echo "Display name:     $(DEV_APP_NAME)"
 	@echo "Note: first run needs a one-time Accessibility grant for this dev variant."
 
 dev: dev-bundle
