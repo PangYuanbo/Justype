@@ -11,6 +11,8 @@ INSTALL_DIR    = /Applications
 NOTARY_PROFILE = JustType-Notary
 ENTITLEMENTS   = Resources/JustType.entitlements
 ZIP            = build/$(APP_NAME).zip
+DMG            = build/$(APP_NAME).dmg
+DMG_STAGING    = build/dmg-staging
 
 # Resolve a stable code-signing identity at make-time. The script prefers a
 # Developer ID Application cert (required for distribution + notarization),
@@ -19,7 +21,7 @@ ZIP            = build/$(APP_NAME).zip
 SIGN_IDENTITY := $(shell ./scripts/get-sign-identity.sh)
 
 .PHONY: all build run install clean bundle sign cert reset-tcc identity \
-        zip notarize staple release release-notarized
+        zip dmg notarize staple release release-notarized
 
 all: bundle
 
@@ -104,8 +106,35 @@ staple: notarize
 	@echo "Notarized + stapled bundle ready: $(APP_BUNDLE)"
 	@echo "Distributable archive:           $(ZIP)"
 
+# Build a signed + notarized DMG containing the already-stapled .app.
+# Provides the classic drag-to-Applications install experience. Depends
+# on `staple` so the .app inside is already notarized + stapled — that
+# way users can also extract the .app directly without internet.
+dmg: staple
+	@rm -rf $(DMG_STAGING)
+	@mkdir -p $(DMG_STAGING)
+	@cp -R $(APP_BUNDLE) $(DMG_STAGING)/
+	@ln -s /Applications $(DMG_STAGING)/Applications
+	@rm -f $(DMG)
+	@hdiutil create \
+	    -volname $(APP_NAME) \
+	    -srcfolder $(DMG_STAGING) \
+	    -ov -format UDZO \
+	    $(DMG) >/dev/null
+	@codesign --force --sign "$(SIGN_IDENTITY)" --timestamp $(DMG)
+	@echo "Submitting $(DMG) to Apple notary…"
+	@xcrun notarytool submit $(DMG) \
+	    --keychain-profile "$(NOTARY_PROFILE)" \
+	    --wait
+	@xcrun stapler staple $(DMG)
+	@xcrun stapler validate $(DMG)
+	@spctl -a -t open --context context:primary-signature -vv $(DMG) 2>&1 || true
+	@rm -rf $(DMG_STAGING)
+	@echo ""
+	@echo "Notarized + stapled DMG ready: $(DMG)"
+
 # Convenience target: everything you need for a public release.
-release-notarized: staple
+release-notarized: dmg
 release: release-notarized
 
 # One-time use: wipe stale Accessibility grants from the previous ad-hoc
