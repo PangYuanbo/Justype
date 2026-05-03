@@ -10,6 +10,10 @@
     <string>com.justype.app</string>
     <key>CFBundleExecutable</key>
     <string>JustType</string>
+    <key>CFBundleIconFile</key>
+    <string>JustType</string>
+    <key>CFBundleIconName</key>
+    <string>JustType</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>CFBundleShortVersionString</key>

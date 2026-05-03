@@ -38,6 +38,9 @@ bundle: build
 	@mkdir -p $(APP_BUNDLE)/Contents/Resources
 	@cp $(BUILD_DIR)/$(APP_NAME) $(APP_BUNDLE)/Contents/MacOS/$(APP_NAME)
 	@cp Resources/Info.plist $(APP_BUNDLE)/Contents/Info.plist
+	@if [ -f Resources/JustType.icns ]; then \
+	    cp Resources/JustType.icns $(APP_BUNDLE)/Contents/Resources/JustType.icns; \
+	fi
 	@$(MAKE) sign
 	@echo ""
 	@echo "Built: $(APP_BUNDLE)"
