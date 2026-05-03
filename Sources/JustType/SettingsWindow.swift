@@ -11,7 +11,7 @@ final class SettingsWindowController: NSWindowController {
         let window = NSWindow(contentViewController: hosting)
         window.title = L10n.settingsTitle.t
         window.styleMask = [.titled, .closable]
-        window.setContentSize(NSSize(width: 540, height: 520))
+        window.setContentSize(NSSize(width: 540, height: 620))
         window.isReleasedWhenClosed = false
         window.center()
         self.init(window: window)
@@ -68,6 +68,34 @@ struct SettingsView: View {
                     .frame(maxWidth: 240)
                     Spacer()
                 }
+            }
+
+            Divider()
+
+            // Behavior — screen-context toggle and other runtime knobs.
+            VStack(alignment: .leading, spacing: 8) {
+                sectionTitle(L10n.settingsBehavior.t)
+                Toggle(isOn: Binding(
+                    get: { state.useScreenContext },
+                    set: { newValue in
+                        state.useScreenContext = newValue
+                        if newValue {
+                            // Trigger the system permission prompt on enable.
+                            Screenshotter.requestPermissionIfNeeded()
+                        }
+                    }
+                )) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L10n.settingsUseScreenContext.t)
+                            .font(.body)
+                        Text(L10n.settingsUseScreenContextHint.t)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .toggleStyle(.switch)
             }
 
             Divider()
@@ -172,7 +200,7 @@ struct SettingsView: View {
             }
         }
         .padding(20)
-        .frame(width: 540, height: 520, alignment: .topLeading)
+        .frame(width: 540, height: 620, alignment: .topLeading)
         .onAppear {
             if !state.apiKey.isEmpty && models.isEmpty {
                 Task { await fetchModels() }

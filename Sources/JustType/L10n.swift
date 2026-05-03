@@ -55,6 +55,9 @@ enum L10n: String {
     case settingsTestButton
     case settingsLanguage
     case settingsAppearance
+    case settingsBehavior
+    case settingsUseScreenContext
+    case settingsUseScreenContextHint
 
     // HUD
     case hudWaiting
@@ -141,6 +144,9 @@ enum L10n: String {
         case .settingsTestButton:     return "Test current config"
         case .settingsLanguage:       return "Language"
         case .settingsAppearance:     return "Appearance"
+        case .settingsBehavior:       return "Behavior"
+        case .settingsUseScreenContext: return "Send a screenshot as context"
+        case .settingsUseScreenContextHint: return "Attaches a low-res snapshot of your screen to each LLM request, so the model can see the surrounding language / app. Requires Screen Recording permission."
 
         case .hudWaiting:             return "Waiting for input…"
         case .hudConverting:          return "Converting…"
@@ -217,6 +223,9 @@ enum L10n: String {
         case .settingsTestButton:     return "测试当前配置"
         case .settingsLanguage:       return "界面语言"
         case .settingsAppearance:     return "外观"
+        case .settingsBehavior:       return "行为"
+        case .settingsUseScreenContext: return "把屏幕截图作为上下文"
+        case .settingsUseScreenContextHint: return "每次请求时附上一张低清屏幕截图,让模型看到周围的语言和应用。需要屏幕录制权限。"
 
         case .hudWaiting:             return "等待输入…"
         case .hudConverting:          return "正在转换…"
