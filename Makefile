@@ -5,6 +5,14 @@ BUILD_DIR      = .build/$(BUILD_CONFIG)
 APP_BUNDLE     = build/$(APP_NAME).app
 INSTALL_DIR    = /Applications
 
+# Dev build identifiers. The dev variant uses a distinct bundle ID +
+# display name, so it co-exists peacefully with the installed
+# /Applications/JustType.app — separate Accessibility grants, separate
+# settings, separate menu-bar entry.
+DEV_APP_NAME   = JustType Dev
+DEV_BUNDLE_ID  = com.justype.app.dev
+DEV_APP_BUNDLE = build/$(DEV_APP_NAME).app
+
 # Distribution-related paths. The notarization profile is created with
 # `xcrun notarytool store-credentials JustType-Notary --apple-id ... --team-id ...`
 # and stored in the user's login keychain.
@@ -21,7 +29,8 @@ DMG_STAGING    = build/dmg-staging
 SIGN_IDENTITY := $(shell ./scripts/get-sign-identity.sh)
 
 .PHONY: all build run install clean bundle sign cert reset-tcc identity \
-        zip dmg notarize staple release release-notarized
+        zip dmg notarize staple release release-notarized \
+        dev dev-run dev-bundle
 
 all: bundle
 
@@ -70,7 +79,51 @@ sign:
 	@codesign -dvv $(APP_BUNDLE) 2>&1 | grep -E "Identifier|Authority|TeamIdentifier|Runtime|flags" || true
 
 run: bundle
+	@killall "$(DEV_APP_NAME)" 2>/dev/null || true
+	@killall "$(APP_NAME)" 2>/dev/null || true
 	@open $(APP_BUNDLE)
+
+# Build a dev variant — same source, different bundle ID + display name,
+# no notarization. Lives in build/JustType Dev.app and shows up in the
+# menu bar separately from the installed /Applications/JustType.app.
+dev-bundle: build
+	@# Prefer Apple Development cert for dev (no Gatekeeper warning + no
+	@# notarization needed). Fall back to whatever get-sign-identity picks.
+	@DEV_IDENTITY=$$( \
+	    security find-identity -v -p codesigning 2>/dev/null \
+	    | grep "Apple Development" | head -1 \
+	    | sed -E 's/.*"([^"]+)".*/\1/' ); \
+	if [ -z "$$DEV_IDENTITY" ]; then DEV_IDENTITY="$(SIGN_IDENTITY)"; fi; \
+	echo "Dev signing identity: $$DEV_IDENTITY"; \
+	rm -rf "$(DEV_APP_BUNDLE)"; \
+	mkdir -p "$(DEV_APP_BUNDLE)/Contents/MacOS"; \
+	mkdir -p "$(DEV_APP_BUNDLE)/Contents/Resources"; \
+	cp $(BUILD_DIR)/$(APP_NAME) "$(DEV_APP_BUNDLE)/Contents/MacOS/$(APP_NAME)"; \
+	sed \
+	    -e 's|<string>$(BUNDLE_ID)</string>|<string>$(DEV_BUNDLE_ID)</string>|' \
+	    -e 's|<string>JustType</string>|<string>$(DEV_APP_NAME)</string>|' \
+	    Resources/Info.plist > "$(DEV_APP_BUNDLE)/Contents/Info.plist"; \
+	if [ -f Resources/JustType.icns ]; then \
+	    cp Resources/JustType.icns "$(DEV_APP_BUNDLE)/Contents/Resources/JustType.icns"; \
+	fi; \
+	codesign --force --deep \
+	    --sign "$$DEV_IDENTITY" \
+	    --identifier $(DEV_BUNDLE_ID) \
+	    --timestamp=none \
+	    "$(DEV_APP_BUNDLE)"
+	@echo ""
+	@echo "Built dev bundle: $(DEV_APP_BUNDLE)"
+	@echo "Bundle ID:        $(DEV_BUNDLE_ID)"
+	@echo "Note: first run needs a one-time Accessibility grant for this dev variant."
+
+dev: dev-bundle
+
+dev-run: dev-bundle
+	@# Quit any other JustType variant first — both binaries listen for the
+	@# same trigger key, so they'd fight if left running together.
+	@killall "$(DEV_APP_NAME)" 2>/dev/null || true
+	@killall "$(APP_NAME)" 2>/dev/null || true
+	@open "$(DEV_APP_BUNDLE)"
 
 install: bundle
 	@rm -rf $(INSTALL_DIR)/$(APP_NAME).app

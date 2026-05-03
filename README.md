@@ -250,23 +250,45 @@ remote. Specifically:
 ```bash
 git clone https://github.com/PangYuanbo/Justype.git
 cd Justype
-make run
+make run         # production-style local build, same bundle ID as the
+                 # released app — convenient if you've installed it.
+# OR
+make dev-run     # builds JustType Dev.app with bundle ID
+                 # com.justype.app.dev — coexists with the installed
+                 # production copy without sharing TCC / settings.
 ```
 
-That builds the release binary, wraps it in `JustType.app`, signs it,
-and launches it.
+`make run` produces `build/JustType.app` and reuses the production
+bundle ID (`com.justype.app`), so it shares Accessibility grants and
+settings with your installed `/Applications/JustType.app`. Use this
+when you don't have the released app installed.
+
+`make dev-run` builds a sibling app called **JustType Dev** with its
+own bundle ID, its own TCC grant, and its own preferences — so you can
+keep the released JustType installed in `/Applications` and iterate on
+the code in parallel without the two fighting over the trigger key.
+Both `make run` and `make dev-run` `killall` the *other* variant before
+launching, since two event taps listening for the same key would
+collide.
 
 ### Make targets
 
 ```bash
-make build      # swift build -c release
-make bundle     # build + assemble the .app + sign it (default for `make`)
-make run        # bundle then `open` it
-make install    # copy the .app to /Applications
-make sign       # re-sign the existing bundle in build/
-make identity   # print the signing identity that will be used
-make reset-tcc  # one-time: wipe stale Accessibility TCC entries
-make clean      # rm -rf .build build
+make build       # swift build -c release
+make bundle      # build + assemble the .app + sign it (default for `make`)
+make run         # bundle then `open` it (kills any running variant first)
+make dev         # build the sibling JustType Dev.app (different bundle ID)
+make dev-run     # build dev + launch it (kills any running variant first)
+make install     # copy the .app to /Applications
+make sign        # re-sign the existing bundle in build/
+make zip         # bundle + ditto-pack into build/JustType.zip
+make notarize    # zip + xcrun notarytool submit (needs JustType-Notary keychain profile)
+make staple      # notarize + xcrun stapler staple
+make dmg         # staple + hdiutil + sign DMG + notarize DMG + staple DMG
+make release     # alias for dmg — produces zip + dmg, both notarized
+make identity    # print the signing identity that will be used
+make reset-tcc   # one-time: wipe stale Accessibility TCC entries
+make clean       # rm -rf .build build
 ```
 
 ### Project layout
